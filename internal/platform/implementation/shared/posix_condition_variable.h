@@ -17,6 +17,7 @@
 
 #include <pthread.h>
 
+#include "absl/time/time.h"
 #include "internal/platform/implementation/condition_variable.h"
 #include "internal/platform/implementation/shared/posix_mutex.h"
 
@@ -30,6 +31,7 @@ class ConditionVariable : public api::ConditionVariable {
 
   void Notify() override;
   Exception Wait() override;
+  Exception Wait(absl::Duration timeout) override;
 
  private:
   Mutex* mutex_;

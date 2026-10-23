@@ -14,6 +14,12 @@
 
 #include "internal/platform/implementation/shared/posix_condition_variable.h"
 
+#include <errno.h>
+#include <time.h>
+
+#include "absl/time/clock.h"
+#include "absl/time/time.h"
+
 namespace nearby {
 namespace posix {
 
@@ -34,6 +40,13 @@ void ConditionVariable::Notify() { pthread_cond_broadcast(&cond_); }
 
 Exception ConditionVariable::Wait() {
   pthread_cond_wait(&cond_, &(mutex_->mutex_));
+
+  return {Exception::kSuccess};
+}
+
+Exception ConditionVariable::Wait(absl::Duration timeout) {
+  timespec deadline = absl::ToTimespec(absl::Now() + timeout);
+  pthread_cond_timedwait(&cond_, &(mutex_->mutex_), &deadline);
 
   return {Exception::kSuccess};
 }

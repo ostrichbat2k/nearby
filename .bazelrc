@@ -1,4 +1,14 @@
 build --action_env=BAZEL_CXXOPTS=-"std=c++20"
+# BAZEL_CXXOPTS above isn't picked up by the bzlmod-registered toolchain on
+# at least Bazel 9.3.1/gcc, so force it explicitly too (needed for e.g. the
+# C++20 spaceship operator in internal/platform/mac_address.h).
+build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
+# GITHUB_BUILD switches a few headers (e.g. sharing/internal/base/
+# utf_string_conversions.h) away from Chromium-only deps that aren't
+# vendored in this public mirror. The upstream repo defines this escape
+# hatch but doesn't wire it into any build config; we need it for a plain
+# `bazel build` to work outside Google's internal Blaze.
+build --copt=-DGITHUB_BUILD --host_copt=-DGITHUB_BUILD
 # Definition of --config=memcheck
 build:memcheck --strip=never --test_timeout=3600
 common --enable_bzlmod

@@ -50,9 +50,13 @@ cc_library(
     hdrs = [
         "posix_condition_variable.h",
     ],
+    visibility = [
+        "//internal/platform/implementation:__subpackages__",
+    ],
     deps = [
         ":posix_mutex",
         "//internal/platform/implementation:types",
+        "@com_google_absl//absl/time",
     ],
 )
 
