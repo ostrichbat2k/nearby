@@ -30,6 +30,7 @@
 #include "absl/status/status.h"
 #include "internal/platform/byte_array.h"
 #include "internal/platform/implementation/linux/ble_gatt_client.h"
+#include "internal/platform/implementation/linux/ble_gatt_server.h"
 #include "internal/platform/implementation/linux/bluez.h"
 #include "internal/platform/logging.h"
 #include "internal/platform/mac_address.h"
@@ -336,6 +337,11 @@ std::unique_ptr<api::ble::BleMedium::ScanningSession> BleMedium::StartScanning(
                                                   "discovery");
   };
   return session;
+}
+
+std::unique_ptr<api::ble::GattServer> BleMedium::StartGattServer(
+    api::ble::ServerGattConnectionCallback callback) {
+  return std::make_unique<GattServer>(std::move(callback));
 }
 
 std::unique_ptr<api::ble::GattClient> BleMedium::ConnectToGattServer(

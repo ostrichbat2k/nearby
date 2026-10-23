@@ -27,6 +27,7 @@ cc_library(
     srcs = [
         "ble.cc",
         "ble_gatt_client.cc",
+        "ble_gatt_server.cc",
         "bluetooth_adapter.cc",
         "bluez.cc",
         "device_info.cc",
@@ -43,6 +44,7 @@ cc_library(
         "atomic_uint32.h",
         "ble.h",
         "ble_gatt_client.h",
+        "ble_gatt_server.h",
         "bluetooth_adapter.h",
         "bluez.h",
         "device_info.h",
@@ -125,5 +127,20 @@ cc_binary(
         "//internal/platform/implementation:comm",
         "//third_party/sdbus_cpp",
         "@com_google_absl//absl/strings",
+    ],
+)
+
+# Manual smoke test against the real system BlueZ daemon, exercising the
+# GATT server; see ble_gatt_server_smoke_test.cc. Not part of any automated
+# test suite -- validating it requires a real external BLE central to
+# connect while it runs.
+cc_binary(
+    name = "ble_gatt_server_smoke_test",
+    srcs = ["ble_gatt_server_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform/implementation:comm",
     ],
 )
