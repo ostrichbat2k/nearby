@@ -74,14 +74,8 @@ class BleMedium : public api::ble::BleMedium {
       const Uuid& service_uuid, api::ble::TxPowerLevel tx_power_level,
       ScanningCallback callback) override;
 
-  // TODO: implement via org.bluez.GattManager1 (RegisterApplication),
-  // exposing our characteristics as GattService1/GattCharacteristic1 D-Bus
-  // objects for BlueZ to serve. Not needed for BLE discovery; needed before
-  // the BLE medium can carry the UKEY2/OfflineFrames handshake itself.
   std::unique_ptr<api::ble::GattServer> StartGattServer(
-      api::ble::ServerGattConnectionCallback callback) override {
-    return nullptr;
-  }
+      api::ble::ServerGattConnectionCallback callback) override;
 
   std::unique_ptr<api::ble::GattClient> ConnectToGattServer(
       api::ble::BlePeripheral::UniqueId peripheral_id,
