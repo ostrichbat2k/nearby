@@ -33,7 +33,12 @@ int main() {
 
   nearby::linux_platform::BleMedium ble;
 
-  nearby::Uuid test_service_uuid("0000fef3-0000-1000-8000-00805f9b34fb");
+  // 0000fef3-... is Google's "Nearby" service UUID (labeled "Google" in
+  // BlueZ's own UUID database); confirmed by an unfiltered BLE scan dump
+  // that caught it repeatedly, by address, from the test phone's own
+  // device path while Quick Share's "ready to receive" screen was open.
+  nearby::Uuid test_service_uuid =
+      *nearby::Uuid::FromString("0000fef3-0000-1000-8000-00805f9b34fb");
 
   nearby::api::ble::BleMedium::ScanCallback scan_callback;
   scan_callback.advertisement_found_cb =
@@ -51,7 +56,7 @@ int main() {
                          std::move(scan_callback));
   printf("StartScanning: %d\n", started);
 
-  std::this_thread::sleep_for(std::chrono::seconds(5));
+  std::this_thread::sleep_for(std::chrono::seconds(25));
 
   printf("StopScanning: %d\n", ble.StopScanning());
 

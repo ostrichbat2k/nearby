@@ -15,11 +15,13 @@
 #include "internal/platform/implementation/linux/ble.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cstdint>
 #include <future>
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -43,6 +45,16 @@ std::vector<uint8_t> ToBytes(const ByteArray& value) {
 
 ByteArray FromBytes(const std::vector<uint8_t>& value) {
   return ByteArray(reinterpret_cast<const char*>(value.data()), value.size());
+}
+
+// Uuid::operator std::string() emits uppercase hex
+// ("0000FCF1-0000-1000-8000-00805F9B34FB"), but BlueZ's D-Bus properties
+// use lowercase ("0000fcf1-..."); normalize so string comparisons/lookups
+// against BlueZ's ServiceUUIDs/ServiceData keys actually match.
+std::string ToLowerUuidString(const Uuid& uuid) {
+  std::string s(uuid);
+  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+  return s;
 }
 
 // BlueZ device object paths are deterministic:
@@ -139,7 +151,7 @@ void BleMedium::HandleDeviceProperties(
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (!scanning_) return;
-    target_uuid_str = std::string(scanning_service_uuid_);
+    target_uuid_str = ToLowerUuidString(scanning_service_uuid_);
     cb = &advertisement_found_cb_;
   }
 
@@ -161,7 +173,9 @@ void BleMedium::HandleDeviceProperties(
   api::ble::BleAdvertisementData advertisement_data;
   advertisement_data.is_extended_advertisement = false;
   for (const auto& [uuid_str, variant] : service_data) {
-    advertisement_data.service_data[Uuid(uuid_str)] =
+    std::optional<Uuid> uuid = Uuid::FromString(uuid_str);
+    if (!uuid.has_value()) continue;
+    advertisement_data.service_data[*uuid] =
         FromBytes(variant.get<std::vector<uint8_t>>());
   }
 
@@ -182,7 +196,7 @@ bool BleMedium::StartAdvertising(
   ad->type = advertise_set_parameters.is_connectable ? "peripheral"
                                                       : "broadcast";
   for (const auto& [uuid, data] : advertising_data.service_data) {
-    std::string uuid_str = std::string(uuid);
+    std::string uuid_str = ToLowerUuidString(uuid);
     ad->service_uuids.push_back(uuid_str);
     ad->service_data[uuid_str] = sdbus::Variant(ToBytes(data));
   }
