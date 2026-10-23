@@ -14,11 +14,19 @@
 
 #include "internal/platform/implementation/linux/bluez.h"
 
+#include <algorithm>
+#include <cctype>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <sdbus-c++/sdbus-c++.h>
+
+#include "internal/platform/byte_array.h"
+#include "internal/platform/mac_address.h"
+#include "internal/platform/uuid.h"
 
 namespace nearby {
 namespace linux_platform {
@@ -55,6 +63,38 @@ std::optional<std::string> BluezSystemBus::FindAdapterPath() {
     }
   }
   return std::nullopt;
+}
+
+std::vector<uint8_t> ToBytes(const ByteArray& value) {
+  const uint8_t* data = reinterpret_cast<const uint8_t*>(value.data());
+  return std::vector<uint8_t>(data, data + value.size());
+}
+
+ByteArray FromBytes(const std::vector<uint8_t>& value) {
+  return ByteArray(reinterpret_cast<const char*>(value.data()), value.size());
+}
+
+std::string ToLowerUuidString(const Uuid& uuid) {
+  std::string s(uuid);
+  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
+  return s;
+}
+
+bool MacAddressFromDevicePath(const std::string& device_path,
+                              MacAddress& out) {
+  constexpr char kDevPrefix[] = "/dev_";
+  size_t pos = device_path.rfind(kDevPrefix);
+  if (pos == std::string::npos) return false;
+  std::string address = device_path.substr(pos + sizeof(kDevPrefix) - 1);
+  std::replace(address.begin(), address.end(), '_', ':');
+  return MacAddress::FromString(address, out);
+}
+
+std::string DevicePathForMacAddress(const std::string& adapter_path,
+                                    const MacAddress& mac) {
+  std::string address = mac.ToString();
+  std::replace(address.begin(), address.end(), ':', '_');
+  return adapter_path + "/dev_" + address;
 }
 
 }  // namespace linux_platform

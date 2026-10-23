@@ -27,12 +27,18 @@
 #ifndef PLATFORM_IMPL_LINUX_BLUEZ_H_
 #define PLATFORM_IMPL_LINUX_BLUEZ_H_
 
+#include <cstdint>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 #include <sdbus-c++/sdbus-c++.h>
+
+#include "internal/platform/byte_array.h"
+#include "internal/platform/mac_address.h"
+#include "internal/platform/uuid.h"
 
 namespace nearby {
 namespace linux_platform {
@@ -91,6 +97,31 @@ class BluezSystemBus {
 
   std::unique_ptr<sdbus::IConnection> connection_;
 };
+
+// Shared helpers for converting between Nearby's types and BlueZ's D-Bus
+// representations. Used by bluetooth_adapter.cc, ble.cc, and the GATT
+// client/server code.
+
+std::vector<uint8_t> ToBytes(const ByteArray& value);
+ByteArray FromBytes(const std::vector<uint8_t>& value);
+
+// Uuid::operator std::string() emits uppercase hex
+// ("0000FCF1-0000-1000-8000-00805F9B34FB"), but BlueZ's D-Bus properties
+// use lowercase ("0000fcf1-..."); normalize so string comparisons/lookups
+// against BlueZ's ServiceUUIDs/ServiceData/UUID keys actually match.
+std::string ToLowerUuidString(const Uuid& uuid);
+
+// BlueZ device object paths are deterministic:
+// "<adapter_path>/dev_AA_BB_CC_DD_EE_FF". Parsing the address out of the
+// path means we don't need the Address property to be present in every
+// signal payload we see for a given device.
+bool MacAddressFromDevicePath(const std::string& device_path,
+                              MacAddress& out);
+
+// Inverse of MacAddressFromDevicePath: builds the device object path BlueZ
+// uses for a given adapter + MAC address, without needing to discover it.
+std::string DevicePathForMacAddress(const std::string& adapter_path,
+                                    const MacAddress& mac);
 
 }  // namespace linux_platform
 }  // namespace nearby
