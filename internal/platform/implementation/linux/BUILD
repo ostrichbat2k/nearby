@@ -111,3 +111,19 @@ cc_binary(
         ":linux",
     ],
 )
+
+# Manual smoke test against the real system BlueZ daemon and a real phone;
+# see ble_gatt_smoke_test.cc. Not part of any automated test suite.
+cc_binary(
+    name = "ble_gatt_smoke_test",
+    srcs = ["ble_gatt_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform:mac_address",
+        "//internal/platform/implementation:comm",
+        "//third_party/sdbus_cpp",
+        "@com_google_absl//absl/strings",
+    ],
+)
