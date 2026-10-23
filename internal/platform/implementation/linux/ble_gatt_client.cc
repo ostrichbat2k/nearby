@@ -85,6 +85,23 @@ bool GattClient::EnsureConnected() {
   if (connected_) return true;
 
   device_proxy_ = BluezSystemBus::Get().CreateProxy(device_path_);
+
+  // Best-effort: force the LE bearer via BlueZ's experimental PreferredBearer
+  // property before connecting. Without this, a device that's BR/EDR-bonded
+  // but not LE-bonded (e.g. a phone also classic-paired with this machine
+  // for audio) always gets connected over BR/EDR -- that's BlueZ's
+  // documented Connect() policy ("connect first the bonded bearer"), and it
+  // silently yields zero GATT services since no real LE link is ever
+  // established. PreferredBearer only exists when bluetoothd was started
+  // with --experimental, so this is a harmless no-op otherwise; the normal
+  // Connect() call below still runs either way.
+  try {
+    device_proxy_->setProperty("PreferredBearer")
+        .onInterface(kDevice1Interface)
+        .toValue<std::string>("le");
+  } catch (const sdbus::Error&) {
+  }
+
   try {
     device_proxy_->callMethod("Connect").onInterface(kDevice1Interface);
   } catch (const sdbus::Error& e) {
