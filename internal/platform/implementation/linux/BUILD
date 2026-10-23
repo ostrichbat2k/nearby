@@ -26,6 +26,7 @@ cc_library(
     name = "linux",
     srcs = [
         "ble.cc",
+        "ble_gatt_client.cc",
         "bluetooth_adapter.cc",
         "bluez.cc",
         "device_info.cc",
@@ -41,6 +42,7 @@ cc_library(
         "atomic_boolean.h",
         "atomic_uint32.h",
         "ble.h",
+        "ble_gatt_client.h",
         "bluetooth_adapter.h",
         "bluez.h",
         "device_info.h",

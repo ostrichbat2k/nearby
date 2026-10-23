@@ -67,7 +67,12 @@ class GattClient : public api::ble::GattClient {
   bool WaitForServicesResolved();
   std::string CharacteristicKey(const Uuid& service_uuid,
                                 const Uuid& characteristic_uuid) const;
+  // Caller must hold mutex_.
   sdbus::IProxy* GetOrCreateCharacteristicProxy(const std::string& object_path);
+  // Starts notifications on the given characteristic and bridges its
+  // PropertiesChanged(Value) signal to callback_.on_characteristic_changed_cb.
+  // Must not be called while holding mutex_.
+  void SubscribeToNotifications(const std::string& object_path);
 
   std::string device_path_;
   api::ble::ClientGattConnectionCallback callback_;
