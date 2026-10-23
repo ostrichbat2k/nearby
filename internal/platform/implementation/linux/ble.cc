@@ -29,6 +29,7 @@
 
 #include "absl/status/status.h"
 #include "internal/platform/byte_array.h"
+#include "internal/platform/implementation/linux/ble_gatt_client.h"
 #include "internal/platform/implementation/linux/bluez.h"
 #include "internal/platform/logging.h"
 #include "internal/platform/mac_address.h"
@@ -335,6 +336,22 @@ std::unique_ptr<api::ble::BleMedium::ScanningSession> BleMedium::StartScanning(
                                                   "discovery");
   };
   return session;
+}
+
+std::unique_ptr<api::ble::GattClient> BleMedium::ConnectToGattServer(
+    api::ble::BlePeripheral::UniqueId peripheral_id,
+    api::ble::TxPowerLevel tx_power_level,
+    api::ble::ClientGattConnectionCallback callback) {
+  if (adapter_path_.empty()) return nullptr;
+
+  MacAddress mac;
+  if (!MacAddress::FromUint64(peripheral_id, mac)) {
+    LOG(ERROR) << "ConnectToGattServer: invalid peripheral id "
+               << peripheral_id;
+    return nullptr;
+  }
+  std::string device_path = DevicePathForMacAddress(adapter_path_, mac);
+  return std::make_unique<GattClient>(device_path, std::move(callback));
 }
 
 bool BleMedium::StopScanning() {

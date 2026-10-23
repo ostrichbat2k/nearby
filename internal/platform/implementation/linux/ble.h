@@ -42,6 +42,7 @@
 #include "absl/functional/any_invocable.h"
 #include "internal/platform/cancellation_flag.h"
 #include "internal/platform/implementation/ble.h"
+#include "internal/platform/mac_address.h"
 #include "internal/platform/uuid.h"
 
 namespace nearby {
@@ -82,15 +83,10 @@ class BleMedium : public api::ble::BleMedium {
     return nullptr;
   }
 
-  // TODO: implement via Device1.Connect() + discovering the remote device's
-  // GattService1/GattCharacteristic1 objects through ObjectManager. See
-  // StartGattServer.
   std::unique_ptr<api::ble::GattClient> ConnectToGattServer(
       api::ble::BlePeripheral::UniqueId peripheral_id,
       api::ble::TxPowerLevel tx_power_level,
-      api::ble::ClientGattConnectionCallback callback) override {
-    return nullptr;
-  }
+      api::ble::ClientGattConnectionCallback callback) override;
 
   // TODO: implement as a GATT-characteristic-emulated stream (write
   // characteristic for inbound data, notify characteristic for outbound),
