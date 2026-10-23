@@ -36,43 +36,6 @@
 namespace nearby {
 namespace linux_platform {
 
-namespace {
-
-std::vector<uint8_t> ToBytes(const ByteArray& value) {
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(value.data());
-  return std::vector<uint8_t>(data, data + value.size());
-}
-
-ByteArray FromBytes(const std::vector<uint8_t>& value) {
-  return ByteArray(reinterpret_cast<const char*>(value.data()), value.size());
-}
-
-// Uuid::operator std::string() emits uppercase hex
-// ("0000FCF1-0000-1000-8000-00805F9B34FB"), but BlueZ's D-Bus properties
-// use lowercase ("0000fcf1-..."); normalize so string comparisons/lookups
-// against BlueZ's ServiceUUIDs/ServiceData keys actually match.
-std::string ToLowerUuidString(const Uuid& uuid) {
-  std::string s(uuid);
-  std::transform(s.begin(), s.end(), s.begin(), ::tolower);
-  return s;
-}
-
-// BlueZ device object paths are deterministic:
-// "<adapter_path>/dev_AA_BB_CC_DD_EE_FF". Parsing the address out of the
-// path means we don't need the Address property to be present in every
-// signal payload we see for a given device.
-bool MacAddressFromDevicePath(const std::string& device_path,
-                              MacAddress& out) {
-  constexpr char kDevPrefix[] = "/dev_";
-  size_t pos = device_path.rfind(kDevPrefix);
-  if (pos == std::string::npos) return false;
-  std::string address = device_path.substr(pos + sizeof(kDevPrefix) - 1);
-  std::replace(address.begin(), address.end(), '_', ':');
-  return MacAddress::FromString(address, out);
-}
-
-}  // namespace
-
 BleMedium::BleMedium() {
   auto adapter_path = BluezSystemBus::Get().FindAdapterPath();
   if (!adapter_path.has_value()) {
