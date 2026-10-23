@@ -99,3 +99,13 @@ cc_binary(
         "//internal/platform/implementation:comm",
     ],
 )
+
+# Throwaway diagnostic; see ble_scan_dump.cc.
+cc_binary(
+    name = "ble_scan_dump",
+    srcs = ["ble_scan_dump.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+    ],
+)
