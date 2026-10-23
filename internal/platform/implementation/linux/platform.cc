@@ -39,6 +39,7 @@
 #include "internal/platform/implementation/input_file.h"
 #include "internal/platform/implementation/linux/atomic_boolean.h"
 #include "internal/platform/implementation/linux/atomic_uint32.h"
+#include "internal/platform/implementation/linux/ble.h"
 #include "internal/platform/implementation/linux/bluetooth_adapter.h"
 #include "internal/platform/implementation/linux/device_info.h"
 #include "internal/platform/implementation/linux/preferences_manager.h"
@@ -191,7 +192,7 @@ ImplementationPlatform::CreateBluetoothClassicMedium(BluetoothAdapter&) {
 
 std::unique_ptr<api::ble::BleMedium> ImplementationPlatform::CreateBleMedium(
     api::BluetoothAdapter&) {
-  return nullptr;
+  return std::make_unique<linux_platform::BleMedium>();
 }
 
 std::unique_ptr<api::CredentialStorage>

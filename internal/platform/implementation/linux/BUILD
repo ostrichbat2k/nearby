@@ -1,3 +1,4 @@
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 
 # Copyright 2026 Google LLC
@@ -24,6 +25,9 @@ licenses(["notice"])
 cc_library(
     name = "linux",
     srcs = [
+        "ble.cc",
+        "bluetooth_adapter.cc",
+        "bluez.cc",
         "device_info.cc",
         "platform.cc",
         "preferences_manager.cc",
@@ -36,7 +40,9 @@ cc_library(
     hdrs = [
         "atomic_boolean.h",
         "atomic_uint32.h",
+        "ble.h",
         "bluetooth_adapter.h",
+        "bluez.h",
         "device_info.h",
         "preferences_manager.h",
         "preferences_repository.h",
@@ -64,7 +70,9 @@ cc_library(
         "//internal/platform/implementation/shared:file",
         "//internal/platform/implementation/shared:posix_condition_variable",
         "//internal/platform/implementation/shared:posix_mutex",
+        "//third_party/sdbus_cpp",
         "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/functional:any_invocable",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -77,4 +85,17 @@ cc_library(
         "@nlohmann_json//:json",
     ],
     alwayslink = True,
+)
+
+# Manual smoke test against the real system BlueZ daemon; see
+# ble_smoke_test.cc. Not part of any automated test suite.
+cc_binary(
+    name = "ble_smoke_test",
+    srcs = ["ble_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform/implementation:comm",
+    ],
 )

@@ -15,7 +15,10 @@
 #ifndef PLATFORM_IMPL_LINUX_BLUETOOTH_ADAPTER_H_
 #define PLATFORM_IMPL_LINUX_BLUETOOTH_ADAPTER_H_
 
+#include <memory>
 #include <string>
+
+#include <sdbus-c++/sdbus-c++.h>
 
 #include "absl/strings/string_view.h"
 #include "internal/platform/implementation/bluetooth_adapter.h"
@@ -24,38 +27,34 @@
 namespace nearby {
 namespace linux_platform {
 
-// TODO: back this with BlueZ's org.bluez.Adapter1 D-Bus interface (hci0's
-// Powered/DiscoverableTimeout/Alias/Address properties) instead of the
-// in-memory placeholder below. Tracked as part of the BlueZ BLE medium work.
+// Backed by BlueZ's org.bluez.Adapter1 D-Bus interface on the first
+// Bluetooth controller BlueZ exposes (typically /org/bluez/hci0). If no
+// adapter is present (no Bluetooth hardware, or bluetoothd isn't running),
+// every operation is a harmless no-op/failure -- there's no USB Bluetooth
+// dongle hot-plug story here, so this is only re-checked at construction.
 class BluetoothAdapter : public api::BluetoothAdapter {
  public:
-  BluetoothAdapter() = default;
+  BluetoothAdapter();
   ~BluetoothAdapter() override = default;
 
-  bool SetStatus(Status status) override {
-    enabled_ = (status == Status::kEnabled);
-    return true;
-  }
-  bool IsEnabled() const override { return enabled_; }
+  bool SetStatus(Status status) override;
+  bool IsEnabled() const override;
 
-  ScanMode GetScanMode() const override { return scan_mode_; }
-  bool SetScanMode(ScanMode scan_mode) override {
-    scan_mode_ = scan_mode;
-    return true;
-  }
+  ScanMode GetScanMode() const override;
+  bool SetScanMode(ScanMode scan_mode) override;
 
-  std::string GetName() const override { return name_; }
-  bool SetName(absl::string_view name, bool persist) override {
-    name_ = std::string(name);
-    return true;
-  }
+  std::string GetName() const override;
+  bool SetName(absl::string_view name, bool persist) override;
 
-  MacAddress GetMacAddress() const override { return MacAddress(); }
+  MacAddress GetMacAddress() const override;
+
+  // Object path of the underlying adapter (e.g. "/org/bluez/hci0"), used by
+  // BleMedium to talk to the same controller. Empty if no adapter was found.
+  const std::string& object_path() const { return object_path_; }
 
  private:
-  bool enabled_ = true;
-  ScanMode scan_mode_ = ScanMode::kNone;
-  std::string name_;
+  std::string object_path_;
+  std::unique_ptr<sdbus::IProxy> proxy_;
 };
 
 }  // namespace linux_platform
