@@ -46,6 +46,7 @@
 #include "internal/platform/implementation/linux/scheduled_executor.h"
 #include "internal/platform/implementation/linux/thread_pool_executor.h"
 #include "internal/platform/implementation/linux/timer.h"
+#include "internal/platform/implementation/linux/wifi_lan.h"
 #include "internal/platform/implementation/linux/wifi_medium.h"
 #include "internal/platform/implementation/log_message.h"
 #include "internal/platform/implementation/mutex.h"
@@ -171,10 +172,10 @@ ImplementationPlatform::CreateScheduledExecutor() {
 }
 
 // Protocol implementations, domain-specific support.
-// BLE/Bluetooth-classic/WiFi-LAN/WiFi-Direct/WiFi-Hotspot/WiFi-Aware/AWDL
-// mediums are not implemented yet -- that is the next phase of this port
-// (BlueZ over D-Bus for BLE/BT, Avahi/NetworkManager for WiFi LAN). Returning
-// nullptr here matches how the upstream apple/windows backends stub out
+// BLE is implemented via BlueZ over D-Bus; WiFi LAN via Avahi over D-Bus for
+// mDNS plus plain POSIX TCP sockets for the data channel. Bluetooth-classic/
+// WiFi-Direct/WiFi-Hotspot/WiFi-Aware/AWDL are not implemented yet. Returning
+// nullptr for those matches how the upstream apple/windows backends stub out
 // mediums they don't support on a given OS.
 std::unique_ptr<AwdlMedium> ImplementationPlatform::CreateAwdlMedium() {
   return nullptr;
@@ -205,7 +206,7 @@ std::unique_ptr<WifiMedium> ImplementationPlatform::CreateWifiMedium() {
 }
 
 std::unique_ptr<WifiLanMedium> ImplementationPlatform::CreateWifiLanMedium() {
-  return nullptr;
+  return std::make_unique<linux_platform::WifiLanMedium>();
 }
 
 std::unique_ptr<WifiAwareMedium> ImplementationPlatform::CreateWifiAwareMedium() {

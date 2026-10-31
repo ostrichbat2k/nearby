@@ -25,6 +25,7 @@ licenses(["notice"])
 cc_library(
     name = "linux",
     srcs = [
+        "avahi.cc",
         "ble.cc",
         "ble_gatt_client.cc",
         "ble_gatt_server.cc",
@@ -40,10 +41,12 @@ cc_library(
         "system_clock.cc",
         "thread_pool_executor.cc",
         "timer.cc",
+        "wifi_lan.cc",
     ],
     hdrs = [
         "atomic_boolean.h",
         "atomic_uint32.h",
+        "avahi.h",
         "ble.h",
         "ble_gatt_client.h",
         "ble_gatt_server.h",
@@ -56,6 +59,7 @@ cc_library(
         "scheduled_executor.h",
         "thread_pool_executor.h",
         "timer.h",
+        "wifi_lan.h",
         "wifi_medium.h",
     ],
     tags = ["linux"],
@@ -103,6 +107,20 @@ cc_library(
 cc_binary(
     name = "ble_smoke_test",
     srcs = ["ble_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform/implementation:comm",
+    ],
+)
+
+# Manual smoke test against the real system Avahi daemon (and, for the
+# discovery half, a real external mDNS announcer on the LAN); see
+# wifi_lan_smoke_test.cc. Not part of any automated test suite.
+cc_binary(
+    name = "wifi_lan_smoke_test",
+    srcs = ["wifi_lan_smoke_test.cc"],
     tags = ["linux"],
     deps = [
         ":linux",
@@ -180,5 +198,46 @@ cc_binary(
         ":linux",
         "//internal/platform:base",
         "//internal/platform/implementation:comm",
+    ],
+)
+
+# A minimal sharing::Context implementation for driving
+# //sharing:nearby_connections_manager directly, without the upstream
+# ContextImpl's account/certificate backend dependency. See
+# sharing_context.h's own comment.
+cc_library(
+    name = "sharing_context",
+    srcs = ["sharing_context.cc"],
+    hdrs = ["sharing_context.h"],
+    tags = ["linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform:mac_address",
+        "//internal/platform:types",
+        "//sharing/internal/api:platform_connections_core",
+        "//sharing/internal/public:types",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+# Manual driver (not an automated test) that advertises a real,
+# Quick-Share-identifiable BLE endpoint from this machine via
+# NearbyConnectionsManagerImpl, using the real "NearbySharing" service ID --
+# see quickshare_advertise.cc.
+cc_binary(
+    name = "quickshare_advertise",
+    srcs = ["quickshare_advertise.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        ":sharing_context",
+        "//internal/platform:base",
+        "//internal/platform:types",
+        "//sharing:nearby_connections_manager",
+        "//sharing:types",
+        "//sharing/common:enum",
+        "//sharing/proto:enums_cc_proto",
     ],
 )
