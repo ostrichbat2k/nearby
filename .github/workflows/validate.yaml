@@ -50,3 +50,13 @@ jobs:
           --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true \
           --copt='-DGITHUB_BUILD' \
           -- //internal/platform/implementation/linux/... //sharing:nearby_connections_manager
+
+  build-linux-release:
+    name: Build Linux Release
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install sdbus-c++ 2.3.1
+      uses: ./.github/actions/sdbus-cpp
+    - name: Build release artifact
+      run: CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" release/linux/build_release.sh ci-validate
