@@ -14,14 +14,42 @@
 
 #include "internal/platform/implementation/linux/sharing_context.h"
 
+#include <net/if.h>
+#include <sys/socket.h>
+
 #include <cstdint>
 #include <memory>
+
+#include <ifaddrs.h>
 
 #include "internal/platform/task_runner.h"
 #include "internal/platform/task_runner_impl.h"
 
 namespace nearby {
 namespace linux_platform {
+
+bool NoOpConnectivityManager::IsLanConnected() {
+  // Same check as linux_platform::WifiLanMedium::IsNetworkConnected (not
+  // shared via a helper -- it's a handful of lines, see wifi_lan.cc).
+  struct ifaddrs* ifaddr = nullptr;
+  if (getifaddrs(&ifaddr) != 0) return false;
+  bool connected = false;
+  for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+    if (ifa->ifa_addr == nullptr) continue;
+    if ((ifa->ifa_flags & IFF_LOOPBACK) != 0) continue;
+    if ((ifa->ifa_flags & IFF_UP) == 0 ||
+        (ifa->ifa_flags & IFF_RUNNING) == 0) {
+      continue;
+    }
+    if (ifa->ifa_addr->sa_family == AF_INET ||
+        ifa->ifa_addr->sa_family == AF_INET6) {
+      connected = true;
+      break;
+    }
+  }
+  freeifaddrs(ifaddr);
+  return connected;
+}
 
 std::unique_ptr<TaskRunner> SharingContext::CreateSequencedTaskRunner()
     const {
