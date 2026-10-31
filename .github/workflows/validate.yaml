@@ -16,12 +16,12 @@ name: Validate
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/linux]
   pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/linux' }}
 
 env:
   FORCE_COLOR: true
@@ -53,5 +53,21 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
+    - name: Install Linux platform system deps
+      run: sudo apt-get update && sudo apt-get install -y libsdbus-c++-dev libsystemd-dev pkg-config
     - name: Build Connections
       run: CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true --copt='-DGITHUB_BUILD' //connections:core
+
+  build-linux-platform:
+    name: Build Linux Platform
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install Linux platform system deps
+      run: sudo apt-get update && sudo apt-get install -y libsdbus-c++-dev libsystemd-dev pkg-config
+    - name: Build Linux platform targets
+      run: |
+        CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build \
+          --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true \
+          --copt='-DGITHUB_BUILD' \
+          -- //internal/platform/implementation/linux/... //sharing:nearby_connections_manager
