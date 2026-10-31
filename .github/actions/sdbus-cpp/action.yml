@@ -43,3 +43,12 @@ runs:
       sudo cmake --install /tmp/sdbus-cpp/build
       sudo ldconfig
     shell: bash
+  - name: Diagnose sdbus-c++ install location
+    run: |
+      echo "--- find ---"
+      find / -iname 'libsdbus-c++*' 2>/dev/null
+      echo "--- ldconfig -p ---"
+      ldconfig -p | grep -i sdbus || echo "not in ldconfig cache"
+      echo "--- CMAKE_INSTALL_LIBDIR used ---"
+      grep -i "CMAKE_INSTALL_LIBDIR\|CMAKE_INSTALL_PREFIX" /tmp/sdbus-cpp/build/CMakeCache.txt
+    shell: bash
