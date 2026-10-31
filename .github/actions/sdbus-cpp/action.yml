@@ -35,7 +35,7 @@ runs:
     if: steps.sdbus-cpp-cache.outputs.cache-hit != 'true'
     run: |
       git clone --depth 1 --branch v2.3.1 https://github.com/Kistler-Group/sdbus-cpp.git /tmp/sdbus-cpp
-      cmake -S /tmp/sdbus-cpp -B /tmp/sdbus-cpp/build -DCMAKE_BUILD_TYPE=Release -DSDBUSCPP_BUILD_TESTS=OFF
+      cmake -S /tmp/sdbus-cpp -B /tmp/sdbus-cpp/build -DCMAKE_BUILD_TYPE=Release -DSDBUSCPP_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_INSTALL_LIBDIR=lib/x86_64-linux-gnu
       cmake --build /tmp/sdbus-cpp/build -j"$(nproc)"
     shell: bash
   - name: Install sdbus-c++
