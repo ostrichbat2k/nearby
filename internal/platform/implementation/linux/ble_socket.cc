@@ -147,7 +147,18 @@ BleSocket::BleSocket(std::unique_ptr<weave::Connection> connection,
 BleSocket::~BleSocket() { Close(); }
 
 Exception BleSocket::Close() {
-  weave_socket_->Disconnect();
+  // Deliberately not calling weave_socket_->Disconnect() here: it only
+  // *schedules* (on weave's own executor thread) writing a graceful error
+  // control packet through `connection_`, and returns immediately. Tearing
+  // down `connection_` right after -- as a naive Close() would -- races
+  // that scheduled write: confirmed on real hardware, where the GATT
+  // characteristic write for that final packet failed with "unknown
+  // characteristic" because connection_->Close() (for the client role,
+  // GattClientWeaveConnection::Close() -> GattClient::Disconnect()) had
+  // already cleared the characteristic map by the time it ran. The
+  // underlying transport going away is itself a perfectly normal way for
+  // the remote to observe disconnection, so just tear it down directly and
+  // skip the packet.
   connection_->Close();
   pipe_input_->Close();
   return {Exception::kSuccess};
