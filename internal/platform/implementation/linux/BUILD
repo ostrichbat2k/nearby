@@ -182,3 +182,44 @@ cc_binary(
         "//internal/platform/implementation:comm",
     ],
 )
+
+# A minimal sharing::Context implementation for driving
+# //sharing:nearby_connections_manager directly, without the upstream
+# ContextImpl's account/certificate backend dependency. See
+# sharing_context.h's own comment.
+cc_library(
+    name = "sharing_context",
+    srcs = ["sharing_context.cc"],
+    hdrs = ["sharing_context.h"],
+    tags = ["linux"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform:mac_address",
+        "//internal/platform:types",
+        "//sharing/internal/api:platform_connections_core",
+        "//sharing/internal/public:types",
+        "@com_google_absl//absl/strings:string_view",
+    ],
+)
+
+# Manual driver (not an automated test) that advertises a real,
+# Quick-Share-identifiable BLE endpoint from this machine via
+# NearbyConnectionsManagerImpl, using the real "NearbySharing" service ID --
+# see quickshare_advertise.cc.
+cc_binary(
+    name = "quickshare_advertise",
+    srcs = ["quickshare_advertise.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        ":sharing_context",
+        "//internal/platform:base",
+        "//internal/platform:types",
+        "//sharing:nearby_connections_manager",
+        "//sharing:types",
+        "//sharing/common:enum",
+        "//sharing/proto:enums_cc_proto",
+    ],
+)
