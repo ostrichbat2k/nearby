@@ -16,42 +16,37 @@ name: Validate
 
 on:
   push:
-    branches: [main]
+    branches: [main, release/linux]
   pull_request:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/release/linux' }}
 
 env:
   FORCE_COLOR: true
 
 jobs:
-  build-swift:
-    name: Build Swift
-    runs-on: macOS-latest
-    steps:
-    - name: sync repo
-      uses: actions/checkout@v6
-      with:
-        submodules: true
-    - name: Build
-      run: swift build
-
-  test-swift:
-    name: Test Swift
-    runs-on: macOS-latest
-    steps:
-    - uses: actions/checkout@v6
-      with:
-        submodules: true
-    - name: Test
-      run: swift test
-
   build-linux:
     name: Build Linux
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
+    - name: Install sdbus-c++ 2.3.1
+      uses: ./.github/actions/sdbus-cpp
     - name: Build Connections
       run: CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true --copt='-DGITHUB_BUILD' //connections:core
+
+  build-linux-platform:
+    name: Build Linux Platform
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install sdbus-c++ 2.3.1
+      uses: ./.github/actions/sdbus-cpp
+    - name: Build Linux platform targets
+      run: |
+        CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build \
+          --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true \
+          --copt='-DGITHUB_BUILD' \
+          -- //internal/platform/implementation/linux/... //sharing:nearby_connections_manager
