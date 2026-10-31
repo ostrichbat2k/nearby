@@ -148,3 +148,19 @@ cc_binary(
         "//internal/platform/implementation:comm",
     ],
 )
+
+# Manual smoke test against the real system BlueZ daemon and a real phone,
+# exercising the Weave-based BleSocket client path (BleMedium::Connect());
+# see ble_socket_smoke_test.cc. Not part of any automated test suite.
+cc_binary(
+    name = "ble_socket_smoke_test",
+    srcs = ["ble_socket_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform:mac_address",
+        "//internal/platform/implementation:comm",
+        "@com_google_absl//absl/strings",
+    ],
+)
