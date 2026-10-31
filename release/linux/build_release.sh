@@ -11,7 +11,7 @@ set -euo pipefail
 
 VERSION="${1:?usage: build_release.sh <version>}"
 TARGET="//release/linux:nearby_linux"
-QUERY_TARGETS="//internal/platform/implementation/linux:sharing_context + //sharing:nearby_connections_manager"
+QUERY_TARGETS="//internal/platform/implementation/linux:sharing_context + //sharing:nearby_connections_manager + //sharing:incoming_frame_reader + //sharing/proto:wire_format_cc_proto + //proto:sharing_enums_cc_proto"
 
 # The exact CcInfo provider key is namespaced by rules_cc's bzlmod canonical
 # repo name. If this breaks after a rules_cc bump, re-derive it with:
