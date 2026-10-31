@@ -22,7 +22,12 @@ cc_library(
     hdrs = [
         "pref_names.h",
     ],
-    compatible_with = ["//buildenv/target:non_prod"],
+    # compatible_with referenced a Google-internal //buildenv/target
+    # environment group not present in this OSS mirror; merely loading
+    # this BUILD file (for any target in it) failed because of it,
+    # regardless of whether the requested target depends on pref_names.
+    # Removed on the Linux fork -- see sharing/proto/BUILD's rust_proto
+    # removal for the same class of issue.
     visibility = ["//visibility:public"],
     deps = [
         "@com_google_absl//absl/strings",
@@ -38,7 +43,12 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//internal/platform:types",
-        "//sharing/internal/api:platform",
+        # Linux fork: context.h/connectivity_manager.h only ever #include
+        # the self-contained bluetooth_adapter.h/fast_initiation_manager.h
+        # headers from :platform's bundle, not the account/certificate/sync
+        # backend the rest of that target drags in -- see
+        # platform_connections_core's own comment.
+        "//sharing/internal/api:platform_connections_core",
         "@com_google_absl//absl/strings",
     ],
 )
