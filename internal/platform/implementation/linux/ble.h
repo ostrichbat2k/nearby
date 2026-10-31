@@ -82,22 +82,16 @@ class BleMedium : public api::ble::BleMedium {
       api::ble::TxPowerLevel tx_power_level,
       api::ble::ClientGattConnectionCallback callback) override;
 
-  // TODO: implement as a GATT-characteristic-emulated stream (write
-  // characteristic for inbound data, notify characteristic for outbound),
-  // once StartGattServer exists -- this is what Android's non-L2CAP
-  // BleSocket is built on.
+  // Implemented as a GATT-characteristic-emulated stream (write
+  // characteristic for inbound data, notify characteristic for outbound) on
+  // top of the Weave BLE GATT transport -- see ble_socket.h.
   std::unique_ptr<api::ble::BleServerSocket> OpenServerSocket(
-      const std::string& service_id) override {
-    return nullptr;
-  }
+      const std::string& service_id) override;
 
-  // TODO: see OpenServerSocket.
   std::unique_ptr<api::ble::BleSocket> Connect(
       const std::string& service_id, api::ble::TxPowerLevel tx_power_level,
       api::ble::BlePeripheral::UniqueId peripheral_id,
-      CancellationFlag* cancellation_flag) override {
-    return nullptr;
-  }
+      CancellationFlag* cancellation_flag) override;
 
   bool IsExtendedAdvertisementsAvailable() override { return false; }
 

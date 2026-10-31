@@ -28,6 +28,7 @@ cc_library(
         "ble.cc",
         "ble_gatt_client.cc",
         "ble_gatt_server.cc",
+        "ble_socket.cc",
         "bluetooth_adapter.cc",
         "bluez.cc",
         "device_info.cc",
@@ -45,6 +46,7 @@ cc_library(
         "ble.h",
         "ble_gatt_client.h",
         "ble_gatt_server.h",
+        "ble_socket.h",
         "bluetooth_adapter.h",
         "bluez.h",
         "device_info.h",
@@ -74,6 +76,8 @@ cc_library(
         "//internal/platform/implementation/shared:file",
         "//internal/platform/implementation/shared:posix_condition_variable",
         "//internal/platform/implementation/shared:posix_mutex",
+        "//internal/weave",
+        "//internal/weave/sockets",
         "//third_party/sdbus_cpp",
         "@com_google_absl//absl/base:core_headers",
         "@com_google_absl//absl/container:flat_hash_map",
@@ -137,6 +141,37 @@ cc_binary(
 cc_binary(
     name = "ble_gatt_server_smoke_test",
     srcs = ["ble_gatt_server_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform/implementation:comm",
+    ],
+)
+
+# Manual smoke test against the real system BlueZ daemon and a real phone,
+# exercising the Weave-based BleSocket client path (BleMedium::Connect());
+# see ble_socket_smoke_test.cc. Not part of any automated test suite.
+cc_binary(
+    name = "ble_socket_smoke_test",
+    srcs = ["ble_socket_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform:mac_address",
+        "//internal/platform/implementation:comm",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+# Manual smoke test against the real system BlueZ daemon, exercising the
+# Weave-based BleSocket server role (BleMedium::OpenServerSocket() +
+# BleServerSocket::Accept()); see ble_socket_server_smoke_test.cc. Not part
+# of any automated test suite.
+cc_binary(
+    name = "ble_socket_server_smoke_test",
+    srcs = ["ble_socket_server_smoke_test.cc"],
     tags = ["linux"],
     deps = [
         ":linux",
