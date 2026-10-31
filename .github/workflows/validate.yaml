@@ -53,8 +53,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
-    - name: Install Linux platform system deps
-      run: sudo apt-get update && sudo apt-get install -y libsdbus-c++-dev libsystemd-dev pkg-config
+    - name: Install sdbus-c++ 2.3.1
+      uses: ./.github/actions/sdbus-cpp
     - name: Build Connections
       run: CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build --@com_google_protobuf//bazel/toolchains:prefer_prebuilt_protoc=true --copt='-DGITHUB_BUILD' //connections:core
 
@@ -63,8 +63,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
     - uses: actions/checkout@v6
-    - name: Install Linux platform system deps
-      run: sudo apt-get update && sudo apt-get install -y libsdbus-c++-dev libsystemd-dev pkg-config
+    - name: Install sdbus-c++ 2.3.1
+      uses: ./.github/actions/sdbus-cpp
     - name: Build Linux platform targets
       run: |
         CC=clang-18 CXX=clang-18++ BAZEL_CXXOPTS="-std=c++20" bazel build \
