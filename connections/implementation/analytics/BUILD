@@ -60,15 +60,8 @@ cc_library(
         "//internal/platform:logging",
         "//internal/platform/implementation:types",
         "//location/nearby/analytics/cpp/logging:event_logger",
-        "//location/nearby/analytics/cpp/proto:connections_log_cc_proto",
         "//proto:connections_enums_cc_proto",
-        "@com_google_absl//absl/algorithm:container",
-        "@com_google_absl//absl/base:core_headers",
-        "@com_google_absl//absl/container:btree",
-        "@com_google_absl//absl/strings:string_view",
-        "@com_google_absl//absl/synchronization",
         "@com_google_absl//absl/time",
-        "@com_google_protobuf//:protobuf_lite",
     ],
 )
 
