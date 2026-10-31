@@ -211,9 +211,16 @@ void BleServerSocket::OnCharacteristicWrite(
   // thread, never inline from this call).
   std::lock_guard<std::mutex> lock(mutex_);
   GattServerWeaveConnection* connection_to_notify = nullptr;
-  if (closed_ || gatt_server_ == nullptr) return;
+  if (closed_ || gatt_server_ == nullptr) {
+    LOG(INFO) << "OnCharacteristicWrite: dropping write from " << remote_id
+              << " (closed_=" << closed_
+              << ", gatt_server_=" << (gatt_server_ != nullptr) << ")";
+    return;
+  }
 
   if (active_connection_ == nullptr) {
+    LOG(INFO) << "OnCharacteristicWrite: new Weave connection from peripheral "
+              << remote_id << " (" << data.size() << " bytes)";
     // A new incoming Weave connection. Build the Connection adapter and
     // the weave::ServerSocket on top of it; the pipe is created now (not
     // once the handshake completes) so on_receive_cb has somewhere to
@@ -265,8 +272,14 @@ void BleServerSocket::OnWeaveConnected(
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (active_remote_id_ != remote_id || pending_.connection == nullptr) {
+      LOG(INFO) << "OnWeaveConnected: ignoring stale/mismatched callback for "
+                << remote_id << " (active_remote_id_=" << active_remote_id_
+                << ", pending_.connection="
+                << (pending_.connection != nullptr) << ")";
       return;
     }
+    LOG(INFO) << "OnWeaveConnected: handshake completed with peripheral "
+              << remote_id << ", pushing onto ready_sockets_";
     socket = std::make_unique<BleSocket>(
         std::move(pending_.connection), std::move(pending_.weave_socket),
         remote_id, std::move(pending_.pipe_input));
@@ -278,6 +291,8 @@ void BleServerSocket::OnWeaveConnected(
 void BleServerSocket::OnConnectionClosed(
     api::ble::BlePeripheral::UniqueId remote_id) {
   std::lock_guard<std::mutex> lock(mutex_);
+  LOG(INFO) << "OnConnectionClosed: peripheral " << remote_id
+            << " (active_remote_id_=" << active_remote_id_ << ")";
   if (active_remote_id_ == remote_id) {
     active_connection_ = nullptr;
     active_remote_id_ = 0;

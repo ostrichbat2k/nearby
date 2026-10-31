@@ -164,3 +164,18 @@ cc_binary(
         "@com_google_absl//absl/strings",
     ],
 )
+
+# Manual smoke test against the real system BlueZ daemon, exercising the
+# Weave-based BleSocket server role (BleMedium::OpenServerSocket() +
+# BleServerSocket::Accept()); see ble_socket_server_smoke_test.cc. Not part
+# of any automated test suite.
+cc_binary(
+    name = "ble_socket_server_smoke_test",
+    srcs = ["ble_socket_server_smoke_test.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        "//internal/platform:base",
+        "//internal/platform/implementation:comm",
+    ],
+)
