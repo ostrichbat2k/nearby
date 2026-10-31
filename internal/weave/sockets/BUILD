@@ -26,7 +26,9 @@ cc_library(
         "initial_data_provider.h",
         "server_socket.h",
     ],
-    visibility = ["//visibility:private"],
+    visibility = [
+        "//internal/platform/implementation/linux:__pkg__",
+    ],
     deps = [
         "//internal/platform:logging",
         "//internal/platform:types",
