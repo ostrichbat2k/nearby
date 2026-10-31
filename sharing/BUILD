@@ -446,6 +446,71 @@ cc_library(
     ],
 )
 
+# A narrower slice of what //sharing:nearby_sharing_service bundles: just the
+# piece that actually drives connections::Core (NearbyConnectionsManagerImpl
+# + NearbyConnectionsServiceImpl, using the real "NearbySharing" service ID),
+# without NearbySharingServiceImpl's contacts/certificate backend -- which
+# needs //location/nearby/sharing/lib/{rpc,account,sync}, not present in this
+# OSS mirror and out of scope (see Linux platform notes). Lets the Linux
+# fork drive a real, Quick-Share-identifiable advertisement/connection
+# without faking any backend.
+cc_library(
+    name = "nearby_connections_manager",
+    srcs = [
+        "nearby_connections_manager.cc",
+        "nearby_connections_manager_impl.cc",
+        "nearby_connections_service.cc",
+        "nearby_connections_service_impl.cc",
+        "transfer_manager.cc",
+    ],
+    hdrs = [
+        "connection_lifecycle_listener.h",
+        "endpoint_discovery_listener.h",
+        "nearby_connections_manager_impl.h",
+        "nearby_connections_service.h",
+        "nearby_connections_service_impl.h",
+        "payload_listener.h",
+        "transfer_manager.h",
+        "transfer_update_callback.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":connection_types",
+        ":nearby_connection_impl",
+        ":thread_timer",
+        ":types",
+        "//connections:core",
+        "//connections:core_types",
+        "//connections/implementation:internal",
+        "//connections/implementation/analytics:analytics_recorder_impl",
+        "//internal/base",
+        "//internal/base:file_path",
+        "//internal/flags:nearby_flags",
+        "//internal/platform:base",
+        "//internal/platform:comm",
+        "//internal/platform:logging",
+        "//internal/platform:mac_address",
+        "//internal/platform:types",
+        "//internal/platform/implementation:types",
+        "//location/nearby/analytics/cpp/logging:event_logger",
+        "//sharing/common:enum",
+        "//sharing/flags/generated:generated_flags",
+        "//sharing/internal/api:platform_connections_core",
+        "//sharing/internal/base",
+        "//sharing/internal/public:logging",
+        "//sharing/internal/public:types",
+        "@com_google_absl//absl/base:core_headers",
+        "@com_google_absl//absl/container:flat_hash_map",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/functional:any_invocable",
+        "@com_google_absl//absl/functional:bind_front",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/synchronization",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
 cc_library(
     name = "test_support",
     testonly = True,

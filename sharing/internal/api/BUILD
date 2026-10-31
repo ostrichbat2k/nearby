@@ -53,6 +53,31 @@ cc_library(
     ],
 )
 
+# A narrower slice of :platform, Linux-fork-only: just the headers that
+# NearbyConnectionsManagerImpl's own dependency chain (sharing/internal/
+# public/context.h) actually #includes -- bluetooth_adapter.h/
+# fast_initiation_manager.h/fast_init_ble_beacon.h, plus app_info.h/
+# network_monitor.h which are equally self-contained. Deliberately excludes
+# preference_manager.h/sharing_platform.h/public_certificate_database.h/
+# private_certificate_data.h, which pull in the account/certificate/sync
+# backend (//location/nearby/sharing/lib/{account,sync}) that's out of
+# scope for just driving connections::Core (see Linux platform notes).
+cc_library(
+    name = "platform_connections_core",
+    hdrs = [
+        "app_info.h",
+        "bluetooth_adapter.h",
+        "fast_init_ble_beacon.h",
+        "fast_initiation_manager.h",
+        "network_monitor.h",
+    ],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//internal/platform:mac_address",
+        "@com_google_absl//absl/functional:any_invocable",
+    ],
+)
+
 cc_library(
     name = "mock_sharing_platform",
     testonly = True,

@@ -14,7 +14,6 @@
 
 load("@com_google_protobuf//bazel:cc_proto_library.bzl", "cc_proto_library")
 load("@com_google_protobuf//bazel:proto_library.bzl", "proto_library")
-load("@com_google_protobuf//rust:defs.bzl", "rust_proto_library")
 
 licenses(["notice"])
 
@@ -67,8 +66,9 @@ cc_proto_library(
     deps = [":enums_proto"],
 )
 
-rust_proto_library(
-    name = "share_rust_proto",
-    visibility = ["//visibility:public"],
-    deps = [":share_proto"],
-)
+# A rust_proto_library target for share_proto used to live here. Removed on
+# the Linux fork: this workspace has no rules_rust toolchain registered, and
+# merely loading @com_google_protobuf//rust:defs.bzl at the top of this file
+# (needed for the rule, whether or not any target in the package is actually
+# requested) broke loading this entire BUILD file for every C++ consumer too
+# -- nothing here needs Rust codegen.
