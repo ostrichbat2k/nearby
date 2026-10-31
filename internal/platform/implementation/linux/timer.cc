@@ -1,0 +1,73 @@
+// Copyright 2026 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+#include "internal/platform/implementation/linux/timer.h"
+
+#include <utility>
+
+#include "absl/synchronization/mutex.h"
+#include "absl/time/time.h"
+#include "internal/platform/logging.h"
+
+namespace nearby {
+namespace linux_platform {
+
+Timer::~Timer() { Stop(); }
+
+bool Timer::Create(int delay, int interval,
+                   absl::AnyInvocable<void()> callback) {
+  absl::MutexLock lock(&mutex_);
+  if (delay < 0 || interval < 0) {
+    LOG(WARNING) << "Delay and interval shouldn't be negative value.";
+    return false;
+  }
+  if (cancelable_task_ != nullptr) {
+    return false;
+  }
+
+  callback_ = std::move(callback);
+  cancelable_task_ = scheduled_executor_.Schedule(
+      [this, interval] { FireAndMaybeReschedule(interval); },
+      absl::Milliseconds(delay));
+  return cancelable_task_ != nullptr;
+}
+
+bool Timer::Stop() {
+  absl::MutexLock lock(&mutex_);
+  if (cancelable_task_ == nullptr) {
+    return true;
+  }
+  bool result = cancelable_task_->Cancel();
+  cancelable_task_ = nullptr;
+  return result;
+}
+
+void Timer::FireAndMaybeReschedule(int interval) {
+  {
+    absl::MutexLock lock(&mutex_);
+    if (callback_ != nullptr) {
+      callback_();
+    }
+  }
+
+  absl::MutexLock lock(&mutex_);
+  if (interval > 0 && cancelable_task_ != nullptr) {
+    cancelable_task_ = scheduled_executor_.Schedule(
+        [this, interval] { FireAndMaybeReschedule(interval); },
+        absl::Milliseconds(interval));
+  }
+}
+
+}  // namespace linux_platform
+}  // namespace nearby
