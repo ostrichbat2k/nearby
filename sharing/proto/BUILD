@@ -43,7 +43,11 @@ proto_library(
     srcs = ["wire_format.proto"],
     visibility = ["//visibility:public"],
     deps = [
-        "//google/protobuf:timestamp",
+        # Not "//google/protobuf:timestamp" -- that repo-local package
+        # doesn't exist in this OSS mirror (no vendored WKT shim directory);
+        # this is the real com_google_protobuf repo's own proto_library
+        # target for timestamp.proto.
+        "@com_google_protobuf//:timestamp_proto",
         "//proto:sharing_enums_proto",
     ],
 )

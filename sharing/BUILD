@@ -92,6 +92,7 @@ cc_library(
         "//location/nearby/sharing/lib:__subpackages__",
         "//location/nearby/sharing/sdk/quick_share_server:__pkg__",
         "//location/nearby/testing/nearby_native:__subpackages__",
+        "//internal/platform/implementation/linux:__pkg__",
         "//sharing:__subpackages__",
     ],
     deps = [
