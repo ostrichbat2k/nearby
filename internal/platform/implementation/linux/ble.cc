@@ -28,12 +28,19 @@
 #include <sdbus-c++/sdbus-c++.h>
 
 #include "absl/status/status.h"
+#include "absl/time/time.h"
 #include "internal/platform/byte_array.h"
+#include "internal/platform/future.h"
 #include "internal/platform/implementation/linux/ble_gatt_client.h"
 #include "internal/platform/implementation/linux/ble_gatt_server.h"
+#include "internal/platform/implementation/linux/ble_socket.h"
 #include "internal/platform/implementation/linux/bluez.h"
 #include "internal/platform/logging.h"
 #include "internal/platform/mac_address.h"
+#include "internal/platform/output_stream.h"
+#include "internal/platform/pipe.h"
+#include "internal/weave/socket_callback.h"
+#include "internal/weave/sockets/client_socket.h"
 
 namespace nearby {
 namespace linux_platform {
@@ -358,6 +365,144 @@ std::unique_ptr<api::ble::GattClient> BleMedium::ConnectToGattServer(
   }
   std::string device_path = DevicePathForMacAddress(adapter_path_, mac);
   return std::make_unique<GattClient>(device_path, std::move(callback));
+}
+
+std::unique_ptr<api::ble::BleServerSocket> BleMedium::OpenServerSocket(
+    const std::string& service_id) {
+  auto server_socket = std::make_unique<BleServerSocket>();
+  BleServerSocket* server_socket_raw = server_socket.get();
+
+  api::ble::ServerGattConnectionCallback gatt_callback;
+  gatt_callback.on_characteristic_write_cb =
+      [server_socket_raw](
+          api::ble::BlePeripheral::UniqueId remote_device_id,
+          const api::ble::GattCharacteristic& characteristic, int offset,
+          absl::string_view data,
+          api::ble::ServerGattConnectionCallback::WriteValueCallback
+              write_done) {
+        server_socket_raw->OnCharacteristicWrite(remote_device_id,
+                                                 characteristic, data);
+        write_done(absl::OkStatus());
+      };
+
+  std::unique_ptr<api::ble::GattServer> gatt_server =
+      StartGattServer(std::move(gatt_callback));
+  if (gatt_server == nullptr) {
+    LOG(ERROR) << "OpenServerSocket(" << service_id
+              << "): failed to start the GATT server.";
+    return nullptr;
+  }
+
+  std::optional<api::ble::GattCharacteristic> write_characteristic =
+      gatt_server->CreateCharacteristic(
+          WeaveServiceUuid(), WeaveToPeripheralCharacteristicUuid(),
+          api::ble::GattCharacteristic::Permission::kWrite,
+          api::ble::GattCharacteristic::Property::kWrite, ByteArray());
+  std::optional<api::ble::GattCharacteristic> notify_characteristic =
+      gatt_server->CreateCharacteristic(
+          WeaveServiceUuid(), WeaveFromPeripheralCharacteristicUuid(),
+          api::ble::GattCharacteristic::Permission::kRead,
+          api::ble::GattCharacteristic::Property::kNotify, ByteArray());
+  if (!write_characteristic.has_value() ||
+      !notify_characteristic.has_value()) {
+    LOG(ERROR) << "OpenServerSocket(" << service_id
+              << "): failed to create the Weave GATT characteristics.";
+    gatt_server->Stop();
+    return nullptr;
+  }
+
+  server_socket_raw->Initialize(std::move(gatt_server), *write_characteristic,
+                                *notify_characteristic);
+  LOG(INFO) << "OpenServerSocket(" << service_id
+           << "): Weave GATT server socket ready.";
+  return std::move(server_socket);
+}
+
+std::unique_ptr<api::ble::BleSocket> BleMedium::Connect(
+    const std::string& service_id, api::ble::TxPowerLevel tx_power_level,
+    api::ble::BlePeripheral::UniqueId peripheral_id,
+    CancellationFlag* cancellation_flag) {
+  auto connection = std::make_unique<GattClientWeaveConnection>();
+  GattClientWeaveConnection* connection_raw = connection.get();
+
+  api::ble::ClientGattConnectionCallback gatt_callback;
+  gatt_callback.on_characteristic_changed_cb =
+      [connection_raw](absl::string_view value) {
+        connection_raw->OnNotifyReceived(value);
+      };
+  gatt_callback.disconnected_cb = [connection_raw]() {
+    connection_raw->OnGattDisconnected();
+  };
+
+  std::unique_ptr<api::ble::GattClient> gatt_client = ConnectToGattServer(
+      peripheral_id, tx_power_level, std::move(gatt_callback));
+  if (gatt_client == nullptr) {
+    LOG(ERROR) << "Connect(" << service_id << "): failed to connect to peripheral "
+              << peripheral_id << "'s GATT server.";
+    return nullptr;
+  }
+
+  if (!gatt_client->DiscoverServiceAndCharacteristics(
+          WeaveServiceUuid(), {WeaveToPeripheralCharacteristicUuid(),
+                              WeaveFromPeripheralCharacteristicUuid()})) {
+    LOG(ERROR) << "Connect(" << service_id
+              << "): failed to discover the Weave GATT characteristics on "
+                 "peripheral "
+              << peripheral_id;
+    return nullptr;
+  }
+  std::optional<api::ble::GattCharacteristic> write_characteristic =
+      gatt_client->GetCharacteristic(WeaveServiceUuid(),
+                                     WeaveToPeripheralCharacteristicUuid());
+  std::optional<api::ble::GattCharacteristic> notify_characteristic =
+      gatt_client->GetCharacteristic(WeaveServiceUuid(),
+                                     WeaveFromPeripheralCharacteristicUuid());
+  if (!write_characteristic.has_value() ||
+      !notify_characteristic.has_value()) {
+    LOG(ERROR) << "Connect(" << service_id
+              << "): Weave GATT characteristics missing on peripheral "
+              << peripheral_id;
+    return nullptr;
+  }
+  connection_raw->SetGattClient(std::move(gatt_client), *write_characteristic,
+                                *notify_characteristic);
+
+  auto [pipe_input, pipe_output] = CreatePipe();
+  std::shared_ptr<OutputStream> shared_pipe_output(std::move(pipe_output));
+  nearby::Future<bool> handshake_done;
+
+  auto weave_socket = std::make_unique<weave::ClientSocket>(
+      *connection_raw,
+      weave::SocketCallback{
+          .on_connected_cb = [handshake_done]() mutable {
+            handshake_done.Set(true);
+          },
+          .on_disconnected_cb = [handshake_done]() mutable {
+            handshake_done.Set(false);
+          },
+          .on_receive_cb = [shared_pipe_output](std::string message) {
+            shared_pipe_output->Write(message);
+          },
+          .on_error_cb = [handshake_done](absl::Status status) mutable {
+            LOG(WARNING) << "Weave client socket error: " << status;
+            handshake_done.Set(false);
+          },
+      });
+  weave_socket->Connect();
+
+  ExceptionOr<bool> connected = handshake_done.Get(absl::Seconds(10));
+  if (!connected.ok() || !connected.result()) {
+    LOG(ERROR) << "Connect(" << service_id
+              << "): Weave handshake with peripheral " << peripheral_id
+              << " failed or timed out.";
+    return nullptr;
+  }
+
+  LOG(INFO) << "Connect(" << service_id << "): Weave socket to peripheral "
+           << peripheral_id << " connected.";
+  return std::make_unique<BleSocket>(std::move(connection),
+                                     std::move(weave_socket), peripheral_id,
+                                     std::move(pipe_input));
 }
 
 bool BleMedium::StopScanning() {
