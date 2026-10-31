@@ -241,3 +241,31 @@ cc_binary(
         "//sharing/proto:enums_cc_proto",
     ],
 )
+
+# Manual driver (not an automated test): discovers a real phone's
+# "NearbySharing" BLE advertisement, connects, performs the real paired-key
+# verification handshake, and sends a real file -- see quickshare_send.cc.
+cc_binary(
+    name = "quickshare_send",
+    srcs = ["quickshare_send.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        ":sharing_context",
+        "//internal/base:file_path",
+        "//internal/base:files",
+        "//internal/platform:base",
+        "//internal/platform:types",
+        "//proto:sharing_enums_cc_proto",
+        "//sharing:incoming_frame_reader",
+        "//sharing:nearby_connections_manager",
+        "//sharing:types",
+        "//sharing/common:enum",
+        "//sharing/proto:enums_cc_proto",
+        "//sharing/proto:wire_format_cc_proto",
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
