@@ -93,10 +93,15 @@ class SharingBluetoothAdapter : public sharing::api::BluetoothAdapter {
   ::nearby::linux_platform::BluetoothAdapter& adapter_;
 };
 
-// No-op: gates WiFi/internet-dependent medium upgrades we don't use here.
+// IsLanConnected() does a real getifaddrs()-based check (see .cc) -- it
+// gates NearbyConnectionsManagerImpl's WiFi LAN bandwidth-upgrade path
+// (ShouldEnableWifiLan), so returning a hardcoded false here would silently
+// disable the WifiLan medium even though internal/platform/implementation/
+// linux/wifi_lan.cc implements it. Internet connectivity isn't needed for
+// local Nearby Connections upgrades, so that one stays a no-op.
 class NoOpConnectivityManager : public nearby::ConnectivityManager {
  public:
-  bool IsLanConnected() override { return false; }
+  bool IsLanConnected() override;
   bool IsInternetConnected() override { return false; }
   void RegisterLanListener(absl::string_view, std::function<void(bool)>) override {}
   void UnregisterLanListener(absl::string_view) override {}
