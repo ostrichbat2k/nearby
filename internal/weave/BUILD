@@ -36,6 +36,9 @@ cc_library(
     ],
     visibility = [
         ":__subpackages__",
+        # The Linux platform backend's BLE socket is the first production
+        # (non-test) consumer of this Weave BLE GATT transport.
+        "//internal/platform/implementation/linux:__pkg__",
     ],
     deps = [
         "//internal/platform:base",
