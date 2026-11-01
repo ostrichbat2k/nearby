@@ -23,6 +23,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <sdbus-c++/sdbus-c++.h>
@@ -293,10 +294,21 @@ bool BleMedium::StartScanningInternal(
 
   // Devices BlueZ already knew about before this call won't fire a fresh
   // InterfacesAdded signal, so bootstrap from the current object cache too.
-  for (const auto& [path, interfaces] :
-       BluezSystemBus::Get().GetManagedObjects()) {
-    OnDeviceInterfacesAdded(path, interfaces);
-  }
+  // This must run asynchronously, not inline here: OnDeviceInterfacesAdded
+  // can synchronously invoke advertisement_found_cb_, which is owned by the
+  // connections-layer BleMedium wrapper that is itself still inside its own
+  // StartScanning() call (still holding its own mutex) while this function
+  // runs -- replaying already-known devices inline reenters that mutex and
+  // self-deadlocks (caught by absl's Mutex deadlock detector, which aborts
+  // the process rather than actually hang). Every other platform backend
+  // only ever reports scan results asynchronously via a real OS scan
+  // callback, so this reentrant-during-setup case is Linux-specific.
+  bootstrap_thread_ = std::thread(
+      [this, objects = BluezSystemBus::Get().GetManagedObjects()]() {
+        for (const auto& [path, interfaces] : objects) {
+          OnDeviceInterfacesAdded(path, interfaces);
+        }
+      });
 
   return true;
 }
@@ -513,6 +525,13 @@ bool BleMedium::StopScanning() {
     scanning_ = false;
     advertisement_found_cb_ = nullptr;
   }
+  // Not holding mutex_ here: bootstrap_thread_ (if still running) takes it
+  // itself via OnDeviceInterfacesAdded, and will see scanning_ already
+  // false above and return quickly. Always join (not just when
+  // was_scanning) so this object is never destroyed out from under it --
+  // StartScanningInternal calls StopScanning() first too, which is what
+  // serializes against a still-running bootstrap from a prior scan.
+  if (bootstrap_thread_.joinable()) bootstrap_thread_.join();
   if (!was_scanning || !adapter_proxy_) return true;
 
   try {
