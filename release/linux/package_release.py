@@ -42,6 +42,17 @@ def resolve_source(short_path: str, workspace_root: pathlib.Path,
             _, _, dest = after_marker.partition("/")
             break
 
+    # Some external repos (boringssl, nlohmann_json) physically lay their
+    # headers out under a top-level include/ dir and declare a plain
+    # `includes = ["include"]` on their cc_library -- no virtual_includes
+    # staging happens for that (only strip_include_prefix triggers it), so
+    # the short_path's repo-relative component still literally starts with
+    # "include/". Strip that one segment too, or these land doubled (e.g.
+    # include/include/openssl/rand.h) instead of at the real #include
+    # spelling (openssl/rand.h) consumers use.
+    if dest.startswith("include/"):
+        dest = dest[len("include/"):]
+
     for candidate in candidates:
         if candidate.is_file():
             return candidate, dest

@@ -174,7 +174,10 @@ cc_library(
     name = "incoming_frame_reader",
     srcs = ["incoming_frames_reader.cc"],
     hdrs = ["incoming_frames_reader.h"],
-    visibility = ["//internal/platform/implementation/linux:__pkg__"],
+    visibility = [
+        "//internal/platform/implementation/linux:__pkg__",
+        "//release/linux:__pkg__",
+    ],
     deps = [
         ":thread_timer",
         ":types",
