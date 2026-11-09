@@ -54,11 +54,23 @@ bool Timer::Stop() {
 }
 
 void Timer::FireAndMaybeReschedule(int interval) {
+  // Deliberately not held across the callback_() call below: the callback
+  // is arbitrary user code (observed in practice: a TaskRunnerImpl lambda
+  // that acquires TaskRunnerImpl's own mutex), and TaskRunnerImpl::
+  // PostDelayedTask() acquires that same mutex *before* calling into
+  // Timer::Create(), which takes mutex_. Holding mutex_ across callback_()
+  // creates an A-then-B / B-then-A lock-order cycle between the two mutexes,
+  // caught by absl's deadlock detector (confirmed via a real crash: "RAW:
+  // Potential Mutex deadlock" aborting mid-transfer). callback_ is only
+  // ever set once, in Create(), so reading it without holding mutex_ for
+  // the duration of the call is safe.
+  bool has_callback;
   {
     absl::MutexLock lock(&mutex_);
-    if (callback_ != nullptr) {
-      callback_();
-    }
+    has_callback = callback_ != nullptr;
+  }
+  if (has_callback) {
+    callback_();
   }
 
   absl::MutexLock lock(&mutex_);
