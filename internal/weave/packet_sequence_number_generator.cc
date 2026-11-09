@@ -35,5 +35,10 @@ void PacketSequenceNumberGenerator::Reset() {
   absl::MutexLock lock(mutex_);
   packet_counter_ = 0;
 }
+
+void PacketSequenceNumberGenerator::SetNext(int value) {
+  absl::MutexLock lock(mutex_);
+  packet_counter_ = value;
+}
 }  // namespace weave
 }  // namespace nearby

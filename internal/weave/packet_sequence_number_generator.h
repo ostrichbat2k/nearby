@@ -34,6 +34,12 @@ class PacketSequenceNumberGenerator {
   // Resets the counter to 0.
   void Reset();
 
+  // Directly sets the counter so the next call to Next() returns `value`.
+  // Used to resynchronize with a remote sender that has skipped ahead
+  // (e.g. after it silently dropped some of its own outgoing packets)
+  // without requiring a full reset back to 0.
+  void SetNext(int value);
+
  private:
   absl::Mutex mutex_;
   int packet_counter_ ABSL_GUARDED_BY(mutex_) = 0;
