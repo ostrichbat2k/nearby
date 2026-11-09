@@ -273,10 +273,23 @@ absl::Status GattServer::NotifyCharacteristicChanged(
     return absl::NotFoundError("Unknown characteristic: " +
                                std::string(characteristic.uuid));
   }
+  bool notifying;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     state->value = new_value;
+    notifying = state->notifying;
+    // If nobody has subscribed yet, remember to flush this once they do
+    // (see OnStartNotify()) instead of emitting a signal BlueZ will just
+    // drop.
+    state->has_pending_notify = !notifying;
   }
+  if (!notifying) {
+    return absl::OkStatus();
+  }
+  return EmitValueChanged(state);
+}
+
+absl::Status GattServer::EmitValueChanged(CharacteristicState* state) {
   try {
     // Updating the Value property and emitting PropertiesChanged is how
     // BlueZ's server-side GATT implementation knows to push a real BLE
@@ -302,6 +315,21 @@ void GattServer::Stop() {
 std::vector<uint8_t> GattServer::OnReadValue(
     CharacteristicState* state,
     const std::map<std::string, sdbus::Variant>& options) {
+  // A characteristic with a static value (set at creation via
+  // `initial_value`, or later via `UpdateCharacteristic()`) is served
+  // directly, without going through the dynamic read callback: see the
+  // contract documented on `ServerGattConnectionCallback::on_characteristic_
+  // read_cb` in internal/platform/implementation/ble.h. This matters because
+  // every GATT server created through the nearby::BleMedium wrapper
+  // (internal/platform/ble.cc) is unconditionally given a non-null dynamic
+  // read callback, even when the real caller passed an empty
+  // ServerGattConnectionCallback and only wants a static value served.
+  {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!state->value.Empty()) {
+      return ToBytes(state->value);
+    }
+  }
   if (callback_.on_characteristic_read_cb) {
     api::ble::BlePeripheral::UniqueId remote_id = 0;
     auto device_it = options.find("device");
@@ -383,10 +411,20 @@ void GattServer::OnWriteValue(
 }
 
 void GattServer::OnStartNotify(CharacteristicState* state) {
+  bool should_flush;
   {
     std::lock_guard<std::mutex> lock(mutex_);
     if (state->notifying) return;
     state->notifying = true;
+    should_flush = state->has_pending_notify;
+    state->has_pending_notify = false;
+  }
+  if (should_flush) {
+    absl::Status status = EmitValueChanged(state);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to flush pending notify for characteristic "
+                 << std::string(state->info.uuid) << ": " << status;
+    }
   }
   if (callback_.characteristic_subscription_cb) {
     callback_.characteristic_subscription_cb(state->info);
