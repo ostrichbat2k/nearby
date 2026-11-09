@@ -414,7 +414,15 @@ std::unique_ptr<api::ble::BleServerSocket> BleMedium::OpenServerSocket(
       gatt_server->CreateCharacteristic(
           WeaveServiceUuid(), WeaveFromPeripheralCharacteristicUuid(),
           api::ble::GattCharacteristic::Permission::kRead,
-          api::ble::GattCharacteristic::Property::kNotify, ByteArray());
+          // Real GATT clients (confirmed via a BLE packet capture) write
+          // 0x0002 (enable indications) to this characteristic's CCCD, not
+          // 0x0001 (notify). Advertising only kNotify made BlueZ reject that
+          // CCCD write with "CCC Improperly Configured", so the client's
+          // subscription -- and therefore every notification we send -- was
+          // silently dropped.
+          api::ble::GattCharacteristic::Property::kNotify |
+              api::ble::GattCharacteristic::Property::kIndicate,
+          ByteArray());
   if (!write_characteristic.has_value() ||
       !notify_characteristic.has_value()) {
     LOG(ERROR) << "OpenServerSocket(" << service_id
