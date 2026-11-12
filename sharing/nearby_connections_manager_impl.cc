@@ -168,7 +168,8 @@ void NearbyConnectionsManagerImpl::Shutdown() { Reset(); }
 void NearbyConnectionsManagerImpl::StartAdvertising(
     std::vector<uint8_t> endpoint_info, IncomingConnectionListener* listener,
     PowerLevel power_level, DataUsage data_usage, bool use_stable_endpoint_id,
-    bool force_new_endpoint_id, ConnectionsCallback callback) {
+    bool force_new_endpoint_id, ConnectionsCallback callback,
+    std::optional<MediumSelection> allowed_mediums_override) {
   DCHECK(listener);
   DCHECK(!incoming_connection_listener_);
 
@@ -180,15 +181,16 @@ void NearbyConnectionsManagerImpl::StartAdvertising(
   bool is_high_power = power_level == PowerLevel::kHighPower;
   bool use_ble = true;
 
-  MediumSelection allowed_mediums = MediumSelection(
-      /*bluetooth=*/is_high_power, /*ble=*/use_ble,
-      // Using kHighPower here rather than power_level to signal that power
-      // level isn't a factor when deciding whether to allow WebRTC
-      // upgrades from this advertisement.
-      ShouldEnableWebRtc(connectivity_manager_, data_usage,
-                         PowerLevel::kHighPower),
-      ShouldEnableWifiLan(connectivity_manager_),
-      ShouldEnableWifiHotspot(connectivity_manager_));
+  MediumSelection allowed_mediums = allowed_mediums_override.value_or(
+      MediumSelection(
+          /*bluetooth=*/is_high_power, /*ble=*/use_ble,
+          // Using kHighPower here rather than power_level to signal that power
+          // level isn't a factor when deciding whether to allow WebRTC
+          // upgrades from this advertisement.
+          ShouldEnableWebRtc(connectivity_manager_, data_usage,
+                             PowerLevel::kHighPower),
+          ShouldEnableWifiLan(connectivity_manager_),
+          ShouldEnableWifiHotspot(connectivity_manager_)));
   VLOG(1) << __func__ << ": "
           << "is_high_power=" << (is_high_power ? "yes" : "no")
           << ", data_usage=" << static_cast<int>(data_usage)
@@ -273,22 +275,24 @@ void NearbyConnectionsManagerImpl::StopAdvertising(
 void NearbyConnectionsManagerImpl::StartDiscovery(
     DiscoveryListener* listener, DataUsage data_usage,
     std::optional<uint16_t> alternate_service_uuid,
-    ConnectionsCallback callback) {
+    ConnectionsCallback callback,
+    std::optional<MediumSelection> allowed_mediums_override) {
   DCHECK(listener);
 
   if (!nearby_connections_service_) {
     std::move(callback)(ConnectionsStatus::kError);
     return;
   }
-  MediumSelection allowed_mediums = MediumSelection(
-      /*bluetooth=*/true,
-      /*ble=*/true,
-      /*web_rtc=*/
-      ShouldEnableWebRtc(connectivity_manager_, data_usage,
-                         PowerLevel::kHighPower),
-      /*wifi_lan=*/
-      ShouldEnableWifiLan(connectivity_manager_),
-      ShouldEnableWifiHotspot(connectivity_manager_));
+  MediumSelection allowed_mediums = allowed_mediums_override.value_or(
+      MediumSelection(
+          /*bluetooth=*/true,
+          /*ble=*/true,
+          /*web_rtc=*/
+          ShouldEnableWebRtc(connectivity_manager_, data_usage,
+                             PowerLevel::kHighPower),
+          /*wifi_lan=*/
+          ShouldEnableWifiLan(connectivity_manager_),
+          ShouldEnableWifiHotspot(connectivity_manager_)));
   VLOG(1) << __func__ << ": "
           << "data_usage=" << static_cast<int>(data_usage)
           << ", allowed_mediums=" << MediumSelectionToString(allowed_mediums);

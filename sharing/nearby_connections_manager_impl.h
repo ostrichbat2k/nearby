@@ -58,15 +58,20 @@ class NearbyConnectionsManagerImpl : public NearbyConnectionsManager {
 
   // NearbyConnectionsManager:
   void Shutdown() override;
-  void StartAdvertising(std::vector<uint8_t> endpoint_info,
-                        IncomingConnectionListener* listener,
-                        PowerLevel power_level, proto::DataUsage data_usage,
-                        bool use_stable_endpoint_id, bool force_new_endpoint_id,
-                        ConnectionsCallback callback) override;
+  void StartAdvertising(
+      std::vector<uint8_t> endpoint_info, IncomingConnectionListener* listener,
+      PowerLevel power_level, proto::DataUsage data_usage,
+      bool use_stable_endpoint_id, bool force_new_endpoint_id,
+      ConnectionsCallback callback,
+      std::optional<MediumSelection> allowed_mediums_override =
+          std::nullopt) override;
   void StopAdvertising(ConnectionsCallback callback) override;
-  void StartDiscovery(DiscoveryListener* listener, proto::DataUsage data_usage,
-                      std::optional<uint16_t> alternate_service_uuid,
-                      ConnectionsCallback callback) override;
+  void StartDiscovery(
+      DiscoveryListener* listener, proto::DataUsage data_usage,
+      std::optional<uint16_t> alternate_service_uuid,
+      ConnectionsCallback callback,
+      std::optional<MediumSelection> allowed_mediums_override =
+          std::nullopt) override;
   void StopDiscovery() override;
   void Connect(std::vector<uint8_t> endpoint_info,
                absl::string_view endpoint_id,
