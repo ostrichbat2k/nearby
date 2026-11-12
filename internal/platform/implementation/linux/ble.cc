@@ -177,16 +177,64 @@ bool BleMedium::StartAdvertising(
   sdbus::IConnection& connection = BluezSystemBus::Get().connection();
   ad->dbus_object =
       sdbus::createObject(connection, sdbus::ObjectPath{ad->object_path});
-  ad->dbus_object
-      ->addVTable(
-          sdbus::registerMethod("Release").implementedAs([]() {}),
-          sdbus::registerProperty("Type").withGetter(
-              [p = ad.get()]() { return p->type; }),
-          sdbus::registerProperty("ServiceUUIDs")
-              .withGetter([p = ad.get()]() { return p->service_uuids; }),
-          sdbus::registerProperty("ServiceData")
-              .withGetter([p = ad.get()]() { return p->service_data; }))
-      .forInterface(kLEAdvertisement1Interface);
+  // SecondaryChannel (and the extra room it buys for Includes=tx-power) only
+  // has meaning for an extended advertisement -- BlueZ's own docs: "This
+  // value is only used when the advertising type is extended." Setting it on
+  // a *legacy* advertisement (as production code builds for the "regular"
+  // header case we actually hit, since IsExtendedAdvertisementsAvailable()
+  // is false here) was found experimentally to make BlueZ broadcast it as an
+  // extended-only PDU instead of a legacy ADV_IND -- invisible to a plain
+  // legacy BLE scan (confirmed with a real Android BluetoothLeScanner: zero
+  // sightings of our adapter's address at all). Only request it when the
+  // caller actually asked for an extended advertisement.
+  if (advertising_data.is_extended_advertisement) {
+    ad->dbus_object
+        ->addVTable(
+            sdbus::registerMethod("Release").implementedAs([]() {}),
+            sdbus::registerProperty("Type").withGetter(
+                [p = ad.get()]() { return p->type; }),
+            sdbus::registerProperty("ServiceUUIDs")
+                .withGetter([p = ad.get()]() { return p->service_uuids; }),
+            sdbus::registerProperty("ServiceData")
+                .withGetter([p = ad.get()]() { return p->service_data; }),
+            // BlueZ defaults to a slow (1280ms) advertising interval when
+            // these are left unset, which hurts discoverability by anything
+            // doing a short/duty-cycled scan (e.g. a phone's share-sheet
+            // nearby-device list). Request a fast-discoverable interval
+            // instead, matching the range real Fast Pair-style accessories
+            // use (BlueZ's MinInterval/MaxInterval are in milliseconds).
+            sdbus::registerProperty("MinInterval")
+                .withGetter([]() -> uint32_t { return 100; }),
+            sdbus::registerProperty("MaxInterval")
+                .withGetter([]() -> uint32_t { return 150; }),
+            // Without a TX Power Level field in the advertisement, a scanner
+            // has no reference power to turn received signal strength into a
+            // distance estimate, and falls back to treating us as
+            // indeterminately far away regardless of actual proximity. Only
+            // fits in the PDU when extended (see comment above).
+            sdbus::registerProperty("Includes")
+                .withGetter([]() -> std::vector<std::string> {
+                  return {"tx-power"};
+                }),
+            sdbus::registerProperty("SecondaryChannel")
+                .withGetter([]() -> std::string { return "1M"; }))
+        .forInterface(kLEAdvertisement1Interface);
+  } else {
+    ad->dbus_object
+        ->addVTable(
+            sdbus::registerMethod("Release").implementedAs([]() {}),
+            sdbus::registerProperty("Type").withGetter(
+                [p = ad.get()]() { return p->type; }),
+            sdbus::registerProperty("ServiceUUIDs")
+                .withGetter([p = ad.get()]() { return p->service_uuids; }),
+            sdbus::registerProperty("ServiceData")
+                .withGetter([p = ad.get()]() { return p->service_data; }),
+            sdbus::registerProperty("MinInterval")
+                .withGetter([]() -> uint32_t { return 100; }),
+            sdbus::registerProperty("MaxInterval")
+                .withGetter([]() -> uint32_t { return 150; }))
+        .forInterface(kLEAdvertisement1Interface);
+  }
 
   try {
     // BlueZ calls GetAll on our LEAdvertisement1 object's properties as
