@@ -35,6 +35,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <sdbus-c++/sdbus-c++.h>
@@ -137,6 +138,10 @@ class BleMedium : public api::ble::BleMedium {
       advertisement_found_cb_;
   std::unique_ptr<sdbus::IProxy> object_manager_proxy_;
   std::vector<std::unique_ptr<sdbus::IProxy>> device_property_watchers_;
+  // Replays already-known devices asynchronously on StartScanning (see
+  // StartScanningInternal's comment); joined by StopScanning so it never
+  // outlives this object.
+  std::thread bootstrap_thread_;
 
   std::atomic<int> next_advertisement_id_{0};
   std::unique_ptr<Advertisement> advertisement_;

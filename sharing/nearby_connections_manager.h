@@ -98,23 +98,25 @@ class NearbyConnectionsManager {
 
   // Starts advertising through Nearby Connections. Caller is expected to ensure
   // `listener` remains valid until StopAdvertising is called.
-  virtual void StartAdvertising(std::vector<uint8_t> endpoint_info,
-                                IncomingConnectionListener* listener,
-                                PowerLevel power_level,
-                                proto::DataUsage data_usage,
-                                bool use_stable_endpoint_id,
-                                bool force_new_endpoint_id,
-                                ConnectionsCallback callback) = 0;
+  virtual void StartAdvertising(
+      std::vector<uint8_t> endpoint_info, IncomingConnectionListener* listener,
+      PowerLevel power_level, proto::DataUsage data_usage,
+      bool use_stable_endpoint_id, bool force_new_endpoint_id,
+      ConnectionsCallback callback,
+      std::optional<MediumSelection> allowed_mediums_override =
+          std::nullopt) = 0;
 
   // Stops advertising through Nearby Connections.
   virtual void StopAdvertising(ConnectionsCallback callback) = 0;
 
   // Starts discovery through Nearby Connections. Caller is expected to ensure
   // `listener` remains valid until StopDiscovery is called.
-  virtual void StartDiscovery(DiscoveryListener* listener,
-                              proto::DataUsage data_usage,
-                              std::optional<uint16_t> alternate_service_uuid,
-                              ConnectionsCallback callback) = 0;
+  virtual void StartDiscovery(
+      DiscoveryListener* listener, proto::DataUsage data_usage,
+      std::optional<uint16_t> alternate_service_uuid,
+      ConnectionsCallback callback,
+      std::optional<MediumSelection> allowed_mediums_override =
+          std::nullopt) = 0;
 
   // Stops discovery through Nearby Connections.
   virtual void StopDiscovery() = 0;

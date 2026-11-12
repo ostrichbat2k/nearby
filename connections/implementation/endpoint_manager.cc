@@ -172,7 +172,17 @@ void EndpointManager::EndpointChannelLoopRunnable(
                          last_failed_medium);
         continue;
       }
-      if (exception.Raised(Exception::kIo)) {
+      // kFailed (the generic/unknown value) is treated the same as kIo: a
+      // channel that was just closed because the *peer's own* courtesy
+      // DISCONNECTION frame arrived on it (see ProcessDisconnectionFrame)
+      // surfaces its next Read() as kFailed, not kIo -- confirmed via a real
+      // hardware test (2026-11-09) where this raced against a just-completed
+      // bandwidth upgrade: the new (WIFI_HOTSPOT) channel was already
+      // registered with channel_manager_ a few hundred microseconds later,
+      // but without this case, the loop fell through straight to dropping
+      // the endpoint instead of re-fetching and finding it.
+      if (exception.Raised(Exception::kIo) ||
+          exception.Raised(Exception::kFailed)) {
         last_failed_medium = channel->GetMedium();
         LOG(INFO) << "Endpoint channel IO exception; last_failed_medium="
                   << location::nearby::proto::connections::Medium_Name(

@@ -74,6 +74,12 @@ class GattServer : public api::ble::GattServer {
     std::string object_path;
     std::unique_ptr<sdbus::IObject> dbus_object;
     bool notifying = false;
+    // Set when NotifyCharacteristicChanged() is called before the remote
+    // device has subscribed (StartNotify). BlueZ silently drops a
+    // PropertiesChanged "Value" emission when nobody is subscribed, so the
+    // notification is otherwise lost; OnStartNotify() flushes this once the
+    // subscription actually lands.
+    bool has_pending_notify = false;
   };
 
   struct ServiceState {
@@ -105,6 +111,7 @@ class GattServer : public api::ble::GattServer {
                     const std::map<std::string, sdbus::Variant>& options);
   void OnStartNotify(CharacteristicState* state);
   void OnStopNotify(CharacteristicState* state);
+  absl::Status EmitValueChanged(CharacteristicState* state);
 
   api::ble::ServerGattConnectionCallback callback_;
 

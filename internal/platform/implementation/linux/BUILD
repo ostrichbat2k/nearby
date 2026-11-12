@@ -41,6 +41,7 @@ cc_library(
         "system_clock.cc",
         "thread_pool_executor.cc",
         "timer.cc",
+        "wifi_hotspot.cc",
         "wifi_lan.cc",
     ],
     hdrs = [
@@ -59,6 +60,7 @@ cc_library(
         "scheduled_executor.h",
         "thread_pool_executor.h",
         "timer.h",
+        "wifi_hotspot.h",
         "wifi_lan.h",
         "wifi_medium.h",
     ],
@@ -263,6 +265,33 @@ cc_binary(
         "//sharing/proto:enums_cc_proto",
         "//sharing/proto:wire_format_cc_proto",
         "@boringssl//:crypto",
+        "@com_google_absl//absl/strings",
+        "@com_google_absl//absl/time",
+        "@com_google_absl//absl/types:span",
+    ],
+)
+
+# Manual driver (not an automated test): the receiver-side mirror of
+# quickshare_send -- advertises, auto-accepts the real handshake, and saves
+# incoming file(s) to disk. See quickshare_receive.cc.
+cc_binary(
+    name = "quickshare_receive",
+    srcs = ["quickshare_receive.cc"],
+    tags = ["linux"],
+    deps = [
+        ":linux",
+        ":sharing_context",
+        "//internal/platform:base",
+        "//internal/platform:types",
+        "//proto:sharing_enums_cc_proto",
+        "//sharing:incoming_frame_reader",
+        "//sharing:nearby_connections_manager",
+        "//sharing:types",
+        "//sharing/common:enum",
+        "//sharing/proto:enums_cc_proto",
+        "//sharing/proto:wire_format_cc_proto",
+        "@boringssl//:crypto",
+        "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/strings",
         "@com_google_absl//absl/time",
         "@com_google_absl//absl/types:span",

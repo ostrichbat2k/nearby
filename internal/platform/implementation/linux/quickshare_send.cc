@@ -47,8 +47,10 @@
 #include <utility>
 #include <vector>
 
+#include "connections/implementation/flags/nearby_connections_feature_flags.h"
 #include "internal/base/file_path.h"
 #include "internal/base/files.h"
+#include "internal/flags/nearby_flags.h"
 #include "internal/platform/implementation/linux/bluetooth_adapter.h"
 #include "internal/platform/implementation/linux/device_info.h"
 #include "internal/platform/implementation/linux/sharing_context.h"
@@ -390,6 +392,15 @@ class SendSession : public NearbyConnectionsManager::DiscoveryListener,
 }  // namespace
 
 int main(int argc, char** argv) {
+  // See the matching note in quickshare_receive.cc: the legacy BLE endpoint
+  // channel path leaks a service_id_hash envelope into the generic
+  // length-prefix message parser, corrupting every real message. Force the
+  // refactored path on.
+  ::nearby::NearbyFlags::GetInstance().OverrideBoolFlagValue(
+      ::nearby::connections::config_package_nearby::nearby_connections_feature::
+          kRefactorBleL2cap,
+      true);
+
   std::string path = argc > 1 ? argv[1]
                               : "/tmp/quickshare-linux-send-test.txt";
   if (argc <= 1) {
@@ -427,6 +438,10 @@ int main(int argc, char** argv) {
   auto session = std::make_shared<SendSession>(
       manager, file_path, display_name, "text/plain", *file_size);
 
+  // TEMPORARY: WiFi LAN only -- see the matching note in quickshare_receive.cc.
+  ::nearby::sharing::MediumSelection wifi_lan_only(
+      /*bluetooth=*/false, /*ble=*/false, /*web_rtc=*/false,
+      /*wifi_lan=*/true, /*wifi_hotspot=*/false);
   bool discovery_result_known = false;
   bool discovery_ok = false;
   manager.StartDiscovery(
@@ -437,7 +452,8 @@ int main(int argc, char** argv) {
         discovery_result_known = true;
         printf("StartDiscovery callback: status=%d\n",
                static_cast<int>(status));
-      });
+      },
+      wifi_lan_only);
 
   for (int i = 0; i < 300 && !discovery_result_known; ++i) {
     if (i % 10 == 0) {

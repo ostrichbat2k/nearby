@@ -69,8 +69,39 @@ BaseSocket::BaseSocket(const Connection& connection, SocketCallback&& callback)
              } else {
                if (isRemotePacketCounterExpected) {
                  OnReceiveDataPacket(std::move(*packet));
+               } else if (packet->IsFirstPacket()) {
+                 // Some real-world senders (observed: Android GMS Nearby
+                 // Connections) silently drop the leading packets of their
+                 // first post-handshake burst due to a sender-side GATT
+                 // write race, then simply start over with a fresh message.
+                 // Disconnecting here would only force a full BLE
+                 // reconnect, which re-triggers the same deterministic
+                 // race. Instead, resynchronize on this fresh message
+                 // start -- the truncated prior message is unrecoverable
+                 // and gets discarded -- and keep the connection alive so
+                 // the sender's retry can go through.
+                 int counter = packet->GetPacketCounter();
+                 LOG(WARNING)
+                     << "Resyncing Weave packet counter to " << counter
+                     << " on fresh message start after gap (expected "
+                        "counter was lower); discarding any in-progress "
+                        "message.";
+                 remote_packet_counter_generator_.SetNext(
+                     (counter + 1) % (Packet::kMaxPacketCounter + 1));
+                 packetizer_.Reset();
+                 OnReceiveDataPacket(std::move(*packet));
                } else {
-                 Disconnect();
+                 // An orphaned continuation fragment of a message whose
+                 // start we never saw (also lost). There's nothing to
+                 // reassemble it into; drop it and resync the counter to
+                 // match the sender instead of disconnecting.
+                 int counter = packet->GetPacketCounter();
+                 LOG(WARNING) << "Dropping orphaned Weave data packet "
+                                 "(counter="
+                              << counter
+                              << ") with no matching message start.";
+                 remote_packet_counter_generator_.SetNext(
+                     (counter + 1) % (Packet::kMaxPacketCounter + 1));
                }
              }
            },
@@ -214,7 +245,6 @@ void BaseSocket::DisconnectQuietly() {
                             was_connected =
                                 state_ == SocketConnectionState::kDisconnecting;
                           }
-
                           if (was_connected) {
                             socket_callback_.on_disconnected_cb();
                           }
@@ -241,9 +271,12 @@ void BaseSocket::OnReceiveDataPacket(Packet packet) {
     DisconnectInternal(packet_status);
     return;
   }
+  // TakeMessage() returning UnavailableError just means this packet wasn't
+  // the message's last fragment yet -- an expected, routine state for any
+  // multi-packet message, not a failure. Simply wait for more packets; only
+  // deliver (and reset the packetizer for) a fully-reassembled message.
   absl::StatusOr<ByteArray> message = packetizer_.TakeMessage();
   if (!message.ok()) {
-    DisconnectInternal(message.status());
     return;
   }
   socket_callback_.on_receive_cb(message->string_data());

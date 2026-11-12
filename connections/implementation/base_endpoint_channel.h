@@ -83,9 +83,18 @@ class BaseEndpointChannel : public EndpointChannel {
   void SetLocalEndpointId(const std::string& local_endpoint_id) override;
   std::string GetLocalEndpointId() const override;
 
-  // Reads a complete packet from the underlying medium.
+  // Reads a complete packet from the underlying medium. The default is a
+  // no-op for mediums that don't need packet-level dispatching (anything
+  // but BLE/BLE_L2CAP, which override this) -- must return an *ok* empty
+  // result, not a default-constructed ExceptionOr, since ExceptionOr's own
+  // default exception_ is Exception::kFailed: a plain `return
+  // ExceptionOr<ByteArray>{};` here made Read() fail immediately for every
+  // non-BLE medium whenever kRefactorBleL2cap is enabled (confirmed via a
+  // real hardware test, 2026-11-09 -- WifiHotspot's first frame read failed
+  // instantly with "Failed to dispatch packet: -1", -1 being
+  // Exception::kFailed's int value).
   virtual ExceptionOr<ByteArray> DispatchPacket() {
-    return ExceptionOr<ByteArray>{};
+    return ExceptionOr<ByteArray>{ByteArray()};
   }
 
   // Reads the length of the next incoming data packet from the underlying

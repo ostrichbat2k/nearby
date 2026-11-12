@@ -23,6 +23,7 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include <sdbus-c++/sdbus-c++.h>
@@ -176,16 +177,64 @@ bool BleMedium::StartAdvertising(
   sdbus::IConnection& connection = BluezSystemBus::Get().connection();
   ad->dbus_object =
       sdbus::createObject(connection, sdbus::ObjectPath{ad->object_path});
-  ad->dbus_object
-      ->addVTable(
-          sdbus::registerMethod("Release").implementedAs([]() {}),
-          sdbus::registerProperty("Type").withGetter(
-              [p = ad.get()]() { return p->type; }),
-          sdbus::registerProperty("ServiceUUIDs")
-              .withGetter([p = ad.get()]() { return p->service_uuids; }),
-          sdbus::registerProperty("ServiceData")
-              .withGetter([p = ad.get()]() { return p->service_data; }))
-      .forInterface(kLEAdvertisement1Interface);
+  // SecondaryChannel (and the extra room it buys for Includes=tx-power) only
+  // has meaning for an extended advertisement -- BlueZ's own docs: "This
+  // value is only used when the advertising type is extended." Setting it on
+  // a *legacy* advertisement (as production code builds for the "regular"
+  // header case we actually hit, since IsExtendedAdvertisementsAvailable()
+  // is false here) was found experimentally to make BlueZ broadcast it as an
+  // extended-only PDU instead of a legacy ADV_IND -- invisible to a plain
+  // legacy BLE scan (confirmed with a real Android BluetoothLeScanner: zero
+  // sightings of our adapter's address at all). Only request it when the
+  // caller actually asked for an extended advertisement.
+  if (advertising_data.is_extended_advertisement) {
+    ad->dbus_object
+        ->addVTable(
+            sdbus::registerMethod("Release").implementedAs([]() {}),
+            sdbus::registerProperty("Type").withGetter(
+                [p = ad.get()]() { return p->type; }),
+            sdbus::registerProperty("ServiceUUIDs")
+                .withGetter([p = ad.get()]() { return p->service_uuids; }),
+            sdbus::registerProperty("ServiceData")
+                .withGetter([p = ad.get()]() { return p->service_data; }),
+            // BlueZ defaults to a slow (1280ms) advertising interval when
+            // these are left unset, which hurts discoverability by anything
+            // doing a short/duty-cycled scan (e.g. a phone's share-sheet
+            // nearby-device list). Request a fast-discoverable interval
+            // instead, matching the range real Fast Pair-style accessories
+            // use (BlueZ's MinInterval/MaxInterval are in milliseconds).
+            sdbus::registerProperty("MinInterval")
+                .withGetter([]() -> uint32_t { return 100; }),
+            sdbus::registerProperty("MaxInterval")
+                .withGetter([]() -> uint32_t { return 150; }),
+            // Without a TX Power Level field in the advertisement, a scanner
+            // has no reference power to turn received signal strength into a
+            // distance estimate, and falls back to treating us as
+            // indeterminately far away regardless of actual proximity. Only
+            // fits in the PDU when extended (see comment above).
+            sdbus::registerProperty("Includes")
+                .withGetter([]() -> std::vector<std::string> {
+                  return {"tx-power"};
+                }),
+            sdbus::registerProperty("SecondaryChannel")
+                .withGetter([]() -> std::string { return "1M"; }))
+        .forInterface(kLEAdvertisement1Interface);
+  } else {
+    ad->dbus_object
+        ->addVTable(
+            sdbus::registerMethod("Release").implementedAs([]() {}),
+            sdbus::registerProperty("Type").withGetter(
+                [p = ad.get()]() { return p->type; }),
+            sdbus::registerProperty("ServiceUUIDs")
+                .withGetter([p = ad.get()]() { return p->service_uuids; }),
+            sdbus::registerProperty("ServiceData")
+                .withGetter([p = ad.get()]() { return p->service_data; }),
+            sdbus::registerProperty("MinInterval")
+                .withGetter([]() -> uint32_t { return 100; }),
+            sdbus::registerProperty("MaxInterval")
+                .withGetter([]() -> uint32_t { return 150; }))
+        .forInterface(kLEAdvertisement1Interface);
+  }
 
   try {
     // BlueZ calls GetAll on our LEAdvertisement1 object's properties as
@@ -293,10 +342,21 @@ bool BleMedium::StartScanningInternal(
 
   // Devices BlueZ already knew about before this call won't fire a fresh
   // InterfacesAdded signal, so bootstrap from the current object cache too.
-  for (const auto& [path, interfaces] :
-       BluezSystemBus::Get().GetManagedObjects()) {
-    OnDeviceInterfacesAdded(path, interfaces);
-  }
+  // This must run asynchronously, not inline here: OnDeviceInterfacesAdded
+  // can synchronously invoke advertisement_found_cb_, which is owned by the
+  // connections-layer BleMedium wrapper that is itself still inside its own
+  // StartScanning() call (still holding its own mutex) while this function
+  // runs -- replaying already-known devices inline reenters that mutex and
+  // self-deadlocks (caught by absl's Mutex deadlock detector, which aborts
+  // the process rather than actually hang). Every other platform backend
+  // only ever reports scan results asynchronously via a real OS scan
+  // callback, so this reentrant-during-setup case is Linux-specific.
+  bootstrap_thread_ = std::thread(
+      [this, objects = BluezSystemBus::Get().GetManagedObjects()]() {
+        for (const auto& [path, interfaces] : objects) {
+          OnDeviceInterfacesAdded(path, interfaces);
+        }
+      });
 
   return true;
 }
@@ -402,7 +462,15 @@ std::unique_ptr<api::ble::BleServerSocket> BleMedium::OpenServerSocket(
       gatt_server->CreateCharacteristic(
           WeaveServiceUuid(), WeaveFromPeripheralCharacteristicUuid(),
           api::ble::GattCharacteristic::Permission::kRead,
-          api::ble::GattCharacteristic::Property::kNotify, ByteArray());
+          // Real GATT clients (confirmed via a BLE packet capture) write
+          // 0x0002 (enable indications) to this characteristic's CCCD, not
+          // 0x0001 (notify). Advertising only kNotify made BlueZ reject that
+          // CCCD write with "CCC Improperly Configured", so the client's
+          // subscription -- and therefore every notification we send -- was
+          // silently dropped.
+          api::ble::GattCharacteristic::Property::kNotify |
+              api::ble::GattCharacteristic::Property::kIndicate,
+          ByteArray());
   if (!write_characteristic.has_value() ||
       !notify_characteristic.has_value()) {
     LOG(ERROR) << "OpenServerSocket(" << service_id
@@ -513,6 +581,13 @@ bool BleMedium::StopScanning() {
     scanning_ = false;
     advertisement_found_cb_ = nullptr;
   }
+  // Not holding mutex_ here: bootstrap_thread_ (if still running) takes it
+  // itself via OnDeviceInterfacesAdded, and will see scanning_ already
+  // false above and return quickly. Always join (not just when
+  // was_scanning) so this object is never destroyed out from under it --
+  // StartScanningInternal calls StopScanning() first too, which is what
+  // serializes against a still-running bootstrap from a prior scan.
+  if (bootstrap_thread_.joinable()) bootstrap_thread_.join();
   if (!was_scanning || !adapter_proxy_) return true;
 
   try {

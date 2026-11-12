@@ -45,6 +45,7 @@
 #include "internal/platform/implementation/linux/scheduled_executor.h"
 #include "internal/platform/implementation/linux/thread_pool_executor.h"
 #include "internal/platform/implementation/linux/timer.h"
+#include "internal/platform/implementation/linux/wifi_hotspot.h"
 #include "internal/platform/implementation/linux/wifi_lan.h"
 #include "internal/platform/implementation/linux/wifi_medium.h"
 #include "internal/platform/implementation/log_message.h"
@@ -204,7 +205,7 @@ std::unique_ptr<WifiAwareMedium> ImplementationPlatform::CreateWifiAwareMedium()
 
 std::unique_ptr<WifiHotspotMedium>
 ImplementationPlatform::CreateWifiHotspotMedium() {
-  return nullptr;
+  return std::make_unique<linux_platform::WifiHotspotMedium>();
 }
 
 std::unique_ptr<WifiDirectMedium>
